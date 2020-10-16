@@ -13,7 +13,7 @@ ILLEGAL_PATTERNS = {
 }
 
 BaseSequence = namedtuple(
-    'BaseSequence', ['header', 'seqtext', 'seqid', 'seqtype', 'modifiers']
+    'BaseSequence', ['header', 'seqtext', 'seqid', 'seqtype', 'modifiers_']
 )
 
 
@@ -26,7 +26,7 @@ class Modifier:
         self.parent_mods = []
         is_root = text == 'root()'
         self.step = 0 if is_root else None
-        self.root_modifier = weakref.ref(self) if is_root else None
+        self.root_modifier = self
 
     def add_child_mod(self, mod):
         self.child_mods.add(mod)
@@ -85,6 +85,20 @@ class ModifierLinkedList:
             last_modifier = Modifier('root()')
         self._last_modifier = last_modifier
 
+    def push(self, modtext, **kw):
+        modifier = Modifier(modtext, **kw)
+        self._last_modifier.add_child_mod(modifier)
+        return ModifierLinkedList(modifier)
+
+    def replace_last(self, modtext, **kw):
+        modifier = Modifier(modtext, **kw)
+        last_modifier = self._last_modifier
+        for parent in last_modifier.parent_mods:
+            parent = parent()
+            parent.remove_child_mod(last_modifier)
+            parent.add_child_mod(modifier)
+        return ModifierLinkedList(modifier)
+
     @property
     def last_modifier(self):
         return self._last_modifier
@@ -99,7 +113,7 @@ class ModifierLinkedList:
         return ModifierLinkedList(last_modifier)
 
     def __str__(self):
-        root = self.last_modifier.root_modifier()
+        root = self.last_modifier.root_modifier
         all_mods = root.get_all_offspring_mods()
         grouped_mods = groupby(
             sorted(all_mods, key=lambda mod: mod.step),
@@ -116,7 +130,7 @@ class Sequence(BaseSequence):
 
     def __new__(
         cls, *, header, seqtext, seqid,
-        seqtype, modifiers=None, skip_invalid=True
+        seqtype, modifiers_=None, skip_invalid=True
     ):
         illegal_pattern = ILLEGAL_PATTERNS[seqtype]
         invalids = illegal_pattern.findall(seqtext)
@@ -129,30 +143,35 @@ class Sequence(BaseSequence):
                     'while skip_invalid=False'
                     .format(header, ''.join(set(invalids)))
                 )
-        if modifiers is None:
-            modifiers = ModifierLinkedList()
-        return super().__new__(cls, header, seqtext, seqid, seqtype, modifiers)
+        return super().__new__(cls, header, seqtext,
+                               seqid, seqtype, modifiers_)
+
+    @property
+    def modifiers(self):
+        if self.modifiers_ is None:
+            return ModifierLinkedList()
+        else:
+            return self.modifiers_
 
     def __getitem__(self, index):
         seqtext = self.seqtext[index]
         if isinstance(index, slice):
             sliceval = index.indices(len(self.seqtext))
             if sliceval[2] == 1:
-                modifier_text = 'slice({},{})'.format(*sliceval[:2])
+                modtext = 'slice({},{})'.format(*sliceval[:2])
             else:
                 raise ValueError(
                     'step slicing is unsupported: {!r}'.format(index)
                 )
-            modifier = Modifier(modifier_text, slicetuples=[sliceval[:2]])
-            last_modifier = self.modifiers.last_modifier
-            last_modifier.add_child_mod(modifier)
+            modifiers = self.modifiers.push(
+                modtext, slicetuples=[sliceval[:2]])
 
             return Sequence(
                 header=self.header,
                 seqtext=seqtext,
                 seqid=self.seqid,
                 seqtype=self.seqtype,
-                modifiers=ModifierLinkedList(modifier),
+                modifiers_=modifiers,
                 skip_invalid=SKIP_VALIDATION)
         return seqtext
 
@@ -173,7 +192,7 @@ class Sequence(BaseSequence):
             seqtext=self.seqtext + other.seqtext,
             seqid=self.seqid,
             seqtype=self.seqtype,
-            modifiers=self.modifiers + other.modifiers,
+            modifiers_=self.modifiers + other.modifiers,
             skip_invalid=SKIP_VALIDATION)
 
     def __iter__(self):
@@ -182,17 +201,38 @@ class Sequence(BaseSequence):
     def __len__(self):
         return len(self.seqtext)
 
-    def modify_seqtext(self, seqtext, modtext):
-        modifier = Modifier(modtext)
-        last_modifier = self.modifiers.last_modifier
-        last_modifier.add_child_mod(modifier)
+    def push_seqtext(self, seqtext, modtext, **kw):
+        """Modify seqtext and push modifier forward
+
+        The difference between `push_seqtext` and `replace_seqtext` is similar
+        to modern browsers' `history.pushstate` and `history.replacestate`,
+        where the history is stored in attribute `modifiers`.
+        """
+        modifiers = self.modifiers.push(modtext, **kw)
 
         return Sequence(
             header=self.header,
             seqtext=seqtext,
             seqid=self.seqid,
             seqtype=self.seqtype,
-            modifiers=ModifierLinkedList(modifier),
+            modifiers_=modifiers,
+            skip_invalid=True)
+
+    def replace_seqtext(self, seqtext, modtext, **kw):
+        """Modify seqtext and replace last modifier
+
+        The difference between `push_seqtext` and `replace_seqtext` is similar
+        to modern browsers' `history.pushstate` and `history.replacestate`,
+        where the history is stored in attribute `modifiers`.
+        """
+        modifiers = self.modifiers.replace_last(modtext, **kw)
+
+        return Sequence(
+            header=self.header,
+            seqtext=seqtext,
+            seqid=self.seqid,
+            seqtype=self.seqtype,
+            modifiers_=modifiers,
             skip_invalid=True)
 
     @property

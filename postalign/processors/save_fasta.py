@@ -16,13 +16,18 @@ from ..cli import cli
     help=(
         'Include/exclude modification steps (modifiers) '
         'in sequence headers'))
-def save_fasta(preserve_order, modifiers):
+@click.option(
+    '--pairwise/--msa',
+    default=False,
+    help='Save alignments in pairwise or MSA form')
+def save_fasta(preserve_order, modifiers, pairwise):
     """Save prior post-alignment results as a FASTA file"""
 
     def processor(iterator):
         # TODO: MSA remap?
         for idx, (refseq, seq) in enumerate(iterator):
             if (
+                pairwise or
                 (not preserve_order and idx == 0) or
                 (preserve_order and refseq.seqid + 1 == seq.seqid)
             ):
