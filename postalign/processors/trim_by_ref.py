@@ -2,30 +2,40 @@ import re
 
 from ..cli import cli
 
+LEFT_TRIM_PATTERN = re.compile(r'^[.-]+')
+RIGHT_TRIM_PATTERN = re.compile(r'[.-]+$')
+
+
+def find_trim_slice(seq):
+    left_trim = None
+    match = LEFT_TRIM_PATTERN.search(seq.seqtext)
+    if match:
+        left_trim = match.span()[1]
+    right_trim = None
+    match = RIGHT_TRIM_PATTERN.search(seq.seqtext)
+    if match:
+        right_trim = match.span()[0]
+    return slice(left_trim, right_trim)
+
 
 @cli.command('trim-by-ref')
 def trim_by_ref():
     """Trim all alignments by reference sequence"""
 
-    LEFT_TRIM_PATTERN = re.compile(r'^[.-]+')
-    RIGHT_TRIM_PATTERN = re.compile(r'[.-]+$')
-
     def processor(iterator):
-        trimed_refseq = None
         for refseq, seq in iterator:
-            left_trim = 0
-            match = LEFT_TRIM_PATTERN.search(refseq.seqtext)
-            if match:
-                left_trim = match.span()[1]
-            right_trim = 0
-            match = RIGHT_TRIM_PATTERN.search(refseq.seqtext)
-            if match:
-                start, end = match.span()
-                right_trim = end - start
-            if trimed_refseq is None:
-                trimed_refseq = refseq[left_trim:-right_trim]
-            trimed_seq = seq[left_trim:-right_trim]
-            yield (trimed_refseq, trimed_seq)
+            sliceobj = find_trim_slice(refseq)
+            refseq = refseq[sliceobj]
+            seq = seq[sliceobj]
+            sliceobj = find_trim_slice(seq)
+            start, end, _ = sliceobj.indices(len(seq))
+            leftdots = '.' * start
+            rightdots = '.' * (len(seq) - end)
+            seq = seq.push_seqtext(
+                leftdots + seq.seqtext[sliceobj] + rightdots,
+                'boderdots()'
+            )
+            yield refseq, seq
 
     processor.command_name = 'trim-by-ref'
     processor.is_output_command = False

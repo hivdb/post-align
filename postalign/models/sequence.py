@@ -132,11 +132,12 @@ class Sequence(BaseSequence):
         cls, *, header, seqtext, seqid,
         seqtype, modifiers_=None, skip_invalid=True
     ):
+        seqtext = seqtext.upper()
         illegal_pattern = ILLEGAL_PATTERNS[seqtype]
         invalids = illegal_pattern.findall(seqtext)
         if skip_invalid is not SKIP_VALIDATION:
             if invalids and skip_invalid:
-                seqtext = illegal_pattern.sub('.', seqtext)
+                seqtext = illegal_pattern.sub('-', seqtext)
             elif invalids:
                 raise ValueError(
                     'sequence {} contains invalid notation(s) ({})'
@@ -237,4 +238,8 @@ class Sequence(BaseSequence):
 
     @property
     def header_with_modifiers(self):
-        return '{} MOD::{}'.format(self.header, self.modifiers)
+        modtext = str(self.modifiers)
+        if modtext:
+            return '{} MOD::{}'.format(self.header, self.modifiers)
+        else:
+            return self.header

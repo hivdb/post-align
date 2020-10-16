@@ -4,7 +4,8 @@ from itertools import chain
 from ..cli import cli
 
 
-GAP_CHARS = '.-'
+GAP_CHARS = '-'
+GAP_OR_MISS = '-.'
 
 
 def list_index(listdata, cond, start=0):
@@ -46,10 +47,10 @@ def group_by_codons(refnas, seqnas):
     for refna, seqna in zip(refnas, seqnas):
         if refna not in GAP_CHARS:
             bp = (bp + 1) % 3
-        if bp == 0:
-            # begin new codon
-            refcodons.append([])
-            seqcodons.append([])
+            if bp == 0:
+                # begin new codon
+                refcodons.append([])
+                seqcodons.append([])
         refcodons[-1].append(refna)
         seqcodons[-1].append(seqna)
     return refcodons, seqcodons
@@ -60,22 +61,30 @@ def has_gap(nas):
 
 
 def calc_match_score(mynas, othernas):
+    # TODO: use blosum62 to calculate
     return sum(myna == otherna for myna, otherna in zip(mynas, othernas))
 
 
 def find_best_matches(mynas, othernas, scanstep=1):
+    orig_gapidx = list_index(mynas, lambda na: na in GAP_CHARS)
     mygap = [na for na in mynas if na in GAP_CHARS]
     mynas = [na for na in mynas if na not in GAP_CHARS]
-    max_score = 0
-    # nas is guaranteed to be not empty due to preprocess
+    max_score = (-1, -1)
     best_mynas = None
-    for idx in range(0, len(mynas), scanstep):
+    for idx in range(scanstep - 1, len(mynas) + 1, scanstep):
         test_mynas = mynas[::]
         test_mynas[idx:idx] = mygap
         score = calc_match_score(test_mynas, othernas)
+        if idx == orig_gapidx:
+            # respect the original gapidx if it's already one of the best
+            score = (score, 1)
+        else:
+            score = (score, 0)
         if score > max_score:
             max_score = score
             best_mynas = test_mynas
+    if best_mynas is None:
+        best_mynas = mygap
     return best_mynas
 
 
@@ -166,7 +175,7 @@ def codon_align(refseq, seq, reading_frame, window_size):
     reftext = refseq.seqtext[reading_frame - 1:]
     seqtext = seq.seqtext[reading_frame - 1:]
 
-    if reftext[0] in GAP_CHARS or reftext[-1] in GAP_CHARS:
+    if reftext[0] in GAP_CHARS or reftext[-1] in GAP_OR_MISS:
         raise click.ClickException(
             'Unable to perform codon-alignment without the alignments '
             'being trimmed properly. Can be solved by pre-processing '
