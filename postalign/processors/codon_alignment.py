@@ -2,10 +2,10 @@ import click
 from itertools import chain
 
 from ..cli import cli
+from ..utils import group_by_codons
 
 
-GAP_CHARS = '-'
-GAP_OR_MISS = '-.'
+GAP_CHARS = '-.'
 
 
 def list_index(listdata, cond, start=0):
@@ -40,22 +40,6 @@ def move_gap_to_codon_end(codons):
     return new_codons
 
 
-def group_by_codons(refnas, seqnas):
-    refcodons = []
-    seqcodons = []
-    bp = -1
-    for refna, seqna in zip(refnas, seqnas):
-        if refna not in GAP_CHARS:
-            bp = (bp + 1) % 3
-            if bp == 0:
-                # begin new codon
-                refcodons.append([])
-                seqcodons.append([])
-        refcodons[-1].append(refna)
-        seqcodons[-1].append(seqna)
-    return refcodons, seqcodons
-
-
 def has_gap(nas):
     return any(gap in nas for gap in GAP_CHARS)
 
@@ -65,13 +49,13 @@ def calc_match_score(mynas, othernas):
     return sum(myna == otherna for myna, otherna in zip(mynas, othernas))
 
 
-def find_best_matches(mynas, othernas, scanstep=1):
+def find_best_matches(mynas, othernas, scanstart=0, scanstep=1):
     orig_gapidx = list_index(mynas, lambda na: na in GAP_CHARS)
     mygap = [na for na in mynas if na in GAP_CHARS]
     mynas = [na for na in mynas if na not in GAP_CHARS]
     max_score = (-1, -1)
     best_mynas = None
-    for idx in range(scanstep - 1, len(mynas) + 1, scanstep):
+    for idx in range(scanstart, len(mynas) + 1, scanstep):
         test_mynas = mynas[::]
         test_mynas[idx:idx] = mygap
         score = calc_match_score(test_mynas, othernas)
@@ -90,14 +74,14 @@ def find_best_matches(mynas, othernas, scanstep=1):
 
 def paired_find_best_matches(refnas, seqnas):
     if has_gap(refnas):
-        refnas = find_best_matches(refnas, seqnas, scanstep=3)
+        refnas = find_best_matches(refnas, seqnas, scanstart=3, scanstep=3)
     elif has_gap(seqnas):
-        seqnas = find_best_matches(seqnas, refnas, scanstep=1)
+        seqnas = find_best_matches(seqnas, refnas, scanstart=0, scanstep=1)
     return refnas, seqnas
 
 
 def realign_gaps(refnas, seqnas, window_size):
-    refcodons, seqcodons = group_by_codons(refnas, seqnas)
+    refcodons, seqcodons = group_by_codons(refnas, seqnas, GAP_CHARS)
     refcodons = move_gap_to_codon_end(refcodons)
     seqcodons = move_gap_to_codon_end(seqcodons)
 
@@ -120,7 +104,8 @@ def realign_gaps(refnas, seqnas, window_size):
         win_refnas, win_seqnas = clean_nalist_pairs(win_refnas, win_seqnas)
         win_refnas, win_seqnas = \
             paired_find_best_matches(win_refnas, win_seqnas)
-        win_refcodons, win_seqcodons = group_by_codons(win_refnas, win_seqnas)
+        (win_refcodons,
+         win_seqcodons) = group_by_codons(win_refnas, win_seqnas, GAP_CHARS)
         refcodons[slicekey] = win_refcodons
         seqcodons[slicekey] = win_seqcodons
 
@@ -175,7 +160,7 @@ def codon_align(refseq, seq, reading_frame, window_size):
     reftext = refseq.seqtext[reading_frame - 1:]
     seqtext = seq.seqtext[reading_frame - 1:]
 
-    if reftext[0] in GAP_CHARS or reftext[-1] in GAP_OR_MISS:
+    if reftext[0] in GAP_CHARS or reftext[-1] in GAP_CHARS:
         raise click.ClickException(
             'Unable to perform codon-alignment without the alignments '
             'being trimmed properly. Can be solved by pre-processing '

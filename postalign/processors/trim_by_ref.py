@@ -27,14 +27,6 @@ def trim_by_ref():
             sliceobj = find_trim_slice(refseq)
             refseq = refseq[sliceobj]
             seq = seq[sliceobj]
-            sliceobj = find_trim_slice(seq)
-            start, end, _ = sliceobj.indices(len(seq))
-            leftdots = '.' * start
-            rightdots = '.' * (len(seq) - end)
-            seq = seq.push_seqtext(
-                leftdots + seq.seqtext[sliceobj] + rightdots,
-                'boderdots()'
-            )
             yield refseq, seq
 
     processor.command_name = 'trim-by-ref'
