@@ -1,10 +1,50 @@
 import click
-from itertools import tee
 
-from .parsers import fasta
+from .parsers import msa, paf, fasta
 
 
-INPUT_FORMAT = ['FASTA']
+INPUT_FORMAT = ['MSA', 'PAF']
+
+
+def reference_callback(ctx, param, value):
+    """Pre-process -r/--reference input"""
+    alignment_format = ctx.params['alignment_format']
+    try:
+        value = open(value)
+        if alignment_format == 'MSA':
+            ref = next(fasta.load(value, seqtype='NA'))
+            value = ref.header
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception:
+        if alignment_format != 'MSA':
+            raise click.BadOptionUsage(
+                param,
+                '-r/--reference must provided as a file path '
+                'if alignment is {!r}'
+                .format(alignment_format),
+                ctx
+            )
+    return value
+
+
+def seqs_prior_alignment_callback(ctx, param, value):
+    """Pre-process -p/--seqs-prior-alignment input"""
+    alignment_format = ctx.params['alignment_format']
+    if alignment_format in ('PAF', ):
+        if not value:
+            raise click.BadOptionUsage(
+                param,
+                '-p/--seqs-prior-alignment must provided '
+                'for alignment format {!r}'
+                .format(alignment_format))
+        return value
+    elif value:
+        click.echo(
+            'Warning: ignore -p/--seqs-prior-alignment for '
+            'alignment format {!r}'
+            .format(alignment_format), err=True)
+        return
 
 
 @click.group(chain=True, invoke_without_command=True)
@@ -15,21 +55,30 @@ INPUT_FORMAT = ['FASTA']
     help=('Input alignment file. Support formats: {}'
           .format(', '.join(INPUT_FORMAT))))
 @click.option(
+    '-p', '--seqs-prior-alignment',
+    type=click.File('r'),
+    callback=seqs_prior_alignment_callback,
+    help=('FASTA sequence file prior alignment; required by '
+          "'PAF' alignment format"))
+@click.option(
     '-o', '--output',
     type=click.File('w'),
     required=True,
     help='Output file')
 @click.option(
     '-f', '--alignment-format',
-    required=True,
+    required=True, is_eager=True,
     type=click.Choice(INPUT_FORMAT, case_sensitive=False),
     help='Input/output alignment file format')
 @click.option(
     '-r', '--reference',
     type=str,
+    callback=reference_callback,
     help=(
-        'Name of the reference sequence. Will use '
-        'the first sequence as reference if not specified'
+        'Header/FASTA file of the reference sequence. Will '
+        'use the first sequence as reference if not specified. '
+        'A file must be specified when -f/--alignment-format '
+        "is not 'MSA'"
     ))
 @click.option(
     '-n/-a', '--nucleotides/--amino-acids',
@@ -37,6 +86,7 @@ INPUT_FORMAT = ['FASTA']
     help='The input sequences are nucleotides or amino acids')
 def cli(
     input_alignment,
+    seqs_prior_alignment,
     output,
     alignment_format,
     reference,
@@ -49,6 +99,7 @@ def cli(
 def process_pipeline(
     processors,
     input_alignment,
+    seqs_prior_alignment,
     output,
     alignment_format,
     reference,
@@ -71,31 +122,15 @@ def process_pipeline(
             'Amino acid sequences is not yet supported (--amino-acids)'
         )
     seqtype = 'NA'
-    if alignment_format == 'FASTA':
-        sequences = fasta.load(input_alignment, seqtype)
-        ref_finder, sequences = tee(sequences, 2)
+    if alignment_format == 'MSA':
+        iterator = msa.load(input_alignment, reference, seqtype)
+    elif alignment_format == 'PAF':
+        iterator = paf.load(input_alignment, seqs_prior_alignment,
+                            reference, seqtype)
     else:
         raise click.ClickException(
             'Unsupport alignment format: {}'.format(alignment_format)
         )
-    if reference:
-        try:
-            refseq = next(
-                ref
-                for ref in ref_finder
-                if ref.header == reference
-            )
-        except StopIteration:
-            raise click.ClickException(
-                'Unable to locate reference {!r} (--reference)'
-                .format(reference)
-            )
-    else:
-        refseq = next(ref_finder)
-    iterator = (
-        (refseq, seq) for seq in sequences
-        if seq != refseq
-    )
     for processor in processors:
         iterator = processor(iterator)
     for partial in iterator:

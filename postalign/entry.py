@@ -1,5 +1,5 @@
-from .cli import cli
-from . import processors
+from postalign.cli import cli
+from postalign import processors
 
 __all__ = ['cli', 'processors']
 

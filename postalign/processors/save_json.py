@@ -61,6 +61,7 @@ def save_json(trim_by_seq):
                     'LengthNA': nalen
                 })
                 abs_seqoffset += nalen
+            aligned_sites = aligned_sites[refstart:refend]
             codonpairs = codonpairs[refstart:refend]
             mutations = [cd for cd in codonpairs
                          if cd['RefCodonText'] != cd['CodonText'] and

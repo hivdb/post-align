@@ -1,7 +1,9 @@
 from ..models.sequence import Sequence
 
+GAP_CHARS = '.-'
 
-def load(fp, seqtype):
+
+def load(fp, seqtype, *, remove_gaps=False):
     header = None
     curseq = ''
     seqid = 0
@@ -9,6 +11,10 @@ def load(fp, seqtype):
         if line.startswith('>'):
             if header and curseq:
                 seqid += 1
+                if remove_gaps:
+                    for gap in GAP_CHARS:
+                        curseq.replace(gap, '')
+
                 yield Sequence(
                     header=header,
                     seqtext=curseq,
@@ -24,6 +30,10 @@ def load(fp, seqtype):
             curseq += line.strip()
     if header and curseq:
         seqid += 1
+        if remove_gaps:
+            for gap in GAP_CHARS:
+                curseq.replace(gap, '')
+
         yield Sequence(
             header=header,
             seqtext=curseq,
