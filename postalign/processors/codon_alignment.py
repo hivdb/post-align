@@ -156,16 +156,19 @@ def clean_nalist_pairs(refnas, seqnas):
 
 
 def codon_align(refseq, seq, reading_frame, window_size):
-    # step 1: apply reading frame
-    reftext = refseq.seqtext[reading_frame - 1:]
-    seqtext = seq.seqtext[reading_frame - 1:]
 
+    reftext = refseq.seqtext
     if reftext[0] in GAP_CHARS or reftext[-1] in GAP_CHARS:
         raise click.ClickException(
             'Unable to perform codon-alignment without the alignments '
             'being trimmed properly. Can be solved by pre-processing '
             'the alignments by command "trim-by-ref".'
         )
+
+    # step 1: apply reading frame
+    refstart = seqstart = reading_frame - 1
+    reftext = reftext[refstart:]
+    seqtext = seq.seqtext[seqstart:]
 
     # step 2: remove matched gaps (due to MSA) from ref and seq
     refnas, seqnas = clean_nalist_pairs(reftext, seqtext)
@@ -174,8 +177,8 @@ def codon_align(refseq, seq, reading_frame, window_size):
     refnas, seqnas = realign_gaps(refnas, seqnas, window_size)
 
     # last step: save "codon aligned" refseq and seq
-    refseq = refseq.push_seqtext(''.join(refnas), 'codonalign()')
-    seq = seq.push_seqtext(''.join(seqnas), 'codonalign()')
+    refseq = refseq.push_seqtext(''.join(refnas), 'codonalign()', refstart)
+    seq = seq.push_seqtext(''.join(seqnas), 'codonalign()', seqstart)
     return refseq, seq
 
 

@@ -14,6 +14,7 @@ def load(fp, seqtype):
                     seqtext=curseq,
                     seqid=seqid,
                     seqtype=seqtype,
+                    abs_seqstart=0,
                     skip_invalid=True)
             header = line[1:].strip()
             curseq = ''
@@ -28,6 +29,7 @@ def load(fp, seqtype):
             seqtext=curseq,
             seqid=seqid,
             seqtype=seqtype,
+            abs_seqstart=0,
             skip_invalid=True)
 
 

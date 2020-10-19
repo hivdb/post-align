@@ -42,21 +42,39 @@ def save_json(trim_by_seq):
                 if refend == 0:
                     refend = None
             refcodons, seqcodons = group_by_codons(reftext, seqtext, GAP_CHARS)
-            codonpairs = [
-                {
-                    'position': idx + 1,
-                    **dict(zip(
-                        ('refCodon', 'seqCodon'),
-                        (''.join(cd) for cd in codons)
-                    ))
-                }
-                for idx, codons in enumerate(zip(refcodons, seqcodons))
-            ]
+            codonpairs = []
+            aligned_sites = []
+            abs_seqoffset = seq.abs_seqstart
+            for pos0, (refcd, seqcd) in enumerate(zip(refcodons, seqcodons)):
+                codonpairs.append({
+                    'Position': pos0 + 1,
+                    'RefCodonText': ''.join(refcd[:3]),
+                    'CodonText': ''.join(seqcd[:3]),
+                    'InsertedCodonsText': ''.join(seqcd[3:]),
+                    'IsInsertion': len(refcd) > 3,
+                    'IsDeletion': seqcd == '---'
+                })
+                nalen = sum(na not in GAP_CHARS for na in seqcd)
+                aligned_sites.append({
+                    'PosAA': pos0 + 1,  # reference location
+                    'PosNA': abs_seqoffset + 1,
+                    'LengthNA': nalen
+                })
+                abs_seqoffset += nalen
             codonpairs = codonpairs[refstart:refend]
+            mutations = [cd for cd in codonpairs
+                         if cd['RefCodonText'] != cd['CodonText'] and
+                         not cd['IsInsertion']]
             text = json.dumps({
-                'name': seq.header,
-                'modifiers': str(seq.modifiers),
-                'codonPairs': codonpairs
+                'Name': seq.header,
+                'Modifiers': [[str(mod) for mod in mods]
+                              for _, mods in seq.modifiers],
+                'Report': {
+                    'FirstAA': codonpairs[0]['Position'],
+                    'LastAA': codonpairs[-1]['Position'],
+                    'AlignedSites': aligned_sites,
+                    'Mutations': mutations
+                }
             }, indent=num_indent)
             if idx > 0:
                 yield ',\n'
