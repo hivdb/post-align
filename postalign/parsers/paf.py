@@ -40,12 +40,12 @@ def load(paffp, seqs_prior_alignment, reference, seqtype):
         yield (
             refseq.push_seqtext(
                 reftext,
-                modtext='paf({},{!r})'.format(ref_start, cigar_text),
+                modtext='paf({},{})'.format(ref_start, cigar_text),
                 start_offset=ref_start
             ),
             seq.push_seqtext(
                 seqtext,
-                modtext='paf({},{!r})'.format(seq_start, cigar_text),
+                modtext='paf({},{})'.format(seq_start, cigar_text),
                 start_offset=seq_start
             )
         )

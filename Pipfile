@@ -11,6 +11,7 @@ pyinstaller = "*"
 click = "*"
 more-itertools = "*"
 pafpy = "*"
+tqdm = "*"
 
 [requires]
 python_version = "3.8"

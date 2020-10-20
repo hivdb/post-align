@@ -1,9 +1,10 @@
 import click
+from tqdm import tqdm
 
-from .parsers import msa, paf, fasta
+from .parsers import msa, paf, fasta, minimap2
 
 
-INPUT_FORMAT = ['MSA', 'PAF']
+INPUT_FORMAT = ['MSA', 'PAF', 'MINIMAP2']
 
 
 def reference_callback(ctx, param, value):
@@ -84,13 +85,18 @@ def seqs_prior_alignment_callback(ctx, param, value):
     '-n/-a', '--nucleotides/--amino-acids',
     default=True,
     help='The input sequences are nucleotides or amino acids')
+@click.option(
+    '-V/-q', '--verbose/--quiet',
+    default=True,
+    help='Verbose/quiet output')
 def cli(
     input_alignment,
     seqs_prior_alignment,
     output,
     alignment_format,
     reference,
-    nucleotides
+    nucleotides,
+    verbose
 ):
     pass
 
@@ -103,7 +109,8 @@ def process_pipeline(
     output,
     alignment_format,
     reference,
-    nucleotides
+    nucleotides,
+    verbose
 ):
     # TODO: verify if processors is ended with an output method
     if not processors:
@@ -127,11 +134,13 @@ def process_pipeline(
     elif alignment_format == 'PAF':
         iterator = paf.load(input_alignment, seqs_prior_alignment,
                             reference, seqtype)
+    elif alignment_format == 'MINIMAP2':
+        iterator = minimap2.load(input_alignment, reference, seqtype)
     else:
         raise click.ClickException(
             'Unsupport alignment format: {}'.format(alignment_format)
         )
     for processor in processors:
         iterator = processor(iterator)
-    for partial in iterator:
+    for partial in tqdm(iterator):
         output.write(partial)

@@ -16,6 +16,7 @@ ILLEGAL_PATTERNS = {
 BaseSequence = namedtuple(
     'BaseSequence', [
         'header',
+        'description',
         'seqtext',
         'seqid',
         'seqtype',
@@ -29,7 +30,11 @@ BaseSequence = namedtuple(
 class Sequence(BaseSequence):
 
     def __new__(
-        cls, *, header, seqtext, seqid,
+        cls, *,
+        header,
+        description,
+        seqtext,
+        seqid,
         seqtype,
         abs_seqstart,
         modifiers_=None,
@@ -47,9 +52,15 @@ class Sequence(BaseSequence):
                     'while skip_invalid=False'
                     .format(header, ''.join(set(invalids)))
                 )
-        return super().__new__(cls, header, seqtext,
-                               seqid, seqtype, abs_seqstart,
-                               modifiers_)
+        return super().__new__(
+            cls,
+            header,
+            description,
+            seqtext,
+            seqid,
+            seqtype,
+            abs_seqstart,
+            modifiers_)
 
     @property
     def modifiers(self):
@@ -105,6 +116,7 @@ class Sequence(BaseSequence):
 
             return Sequence(
                 header=self.header,
+                description=self.description,
                 seqtext=seqtext,
                 seqid=self.seqid,
                 seqtype=self.seqtype,
@@ -152,6 +164,7 @@ class Sequence(BaseSequence):
 
         return Sequence(
             header=self.header,
+            description=self.description,
             seqtext=seqtext,
             seqid=self.seqid,
             seqtype=self.seqtype,
@@ -171,6 +184,7 @@ class Sequence(BaseSequence):
 
         return Sequence(
             header=self.header,
+            description=self.description,
             seqtext=seqtext,
             seqid=self.seqid,
             seqtype=self.seqtype,
