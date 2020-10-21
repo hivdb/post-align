@@ -139,6 +139,7 @@ class Sequence(BaseSequence):
             )
         return Sequence(
             header=self.header,
+            description=self.description,
             seqtext=self.seqtext + other.seqtext,
             seqid=self.seqid,
             seqtype=self.seqtype,
