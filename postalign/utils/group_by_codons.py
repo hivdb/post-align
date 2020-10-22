@@ -1,9 +1,9 @@
-def group_by_codons(refnas, seqnas, gap_chars='-.'):
+def group_by_codons(refnas, seqnas):
     refcodons = []
     seqcodons = []
     bp = -1
     for refna, seqna in zip(refnas, seqnas):
-        if refna not in gap_chars:
+        if not refna.is_gap():
             bp = (bp + 1) % 3
             if bp == 0:
                 # begin new codon

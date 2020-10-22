@@ -27,6 +27,120 @@ BaseSequence = namedtuple(
 )
 
 
+def enumerate_seq_pos(seq_text):
+    offset = 0
+    seq_pos = []
+    for na in seq_text:
+        if na in GAP_CHARS:
+            seq_pos.append(-1)
+        else:
+            seq_pos.append(offset)
+            offset += 1
+    return seq_pos
+
+
+class PositionalSeqStr:
+
+    def __init__(self, seq_text, seq_pos=None):
+        if not seq_text:
+            self._seq_text = ''
+            self._seq_pos = []
+        elif isinstance(seq_text, PositionalSeqStr):
+            self._seq_text = seq_text._seq_text
+            self._seq_pos = seq_text._seq_pos
+        elif isinstance(seq_text, list):
+            if isinstance(seq_text[0], tuple):
+                self._seq_text, self._seq_pos = list(zip(*seq_text))
+            elif isinstance(seq_text[0], PositionalSeqStr):
+                temp = PositionalSeqStr.join(seq_text)
+                self._seq_text = temp._seq_text
+                self._seq_pos = temp._seq_pos
+            else:
+                raise ValueError('invalid input')
+        elif seq_pos is None:
+            self._seq_text = seq_text.upper()
+            self._seq_pos = enumerate_seq_pos(seq_text)
+        elif isinstance(seq_pos, int):
+            self._seq_text = seq_text.upper()
+            self._seq_pos = [seq_pos]
+        elif len(seq_text) == len(seq_pos):
+            self._seq_text = seq_text.upper()
+            self._seq_pos = seq_pos
+        else:
+            raise ValueError('invalid input')
+
+    def __getitem__(self, index):
+        return PositionalSeqStr(
+            self._seq_text[index],
+            self._seq_pos[index])
+
+    def __setitem__(self, index, value):
+        if isinstance(value, PositionalSeqStr):
+            self._seq_text[index] = value._seq_text
+            self._seq_pos[index] = value._seq_pos
+        elif not value:
+            self._seq_text[index] = ''
+            self._seq_pos[index] = []
+        elif all(na in GAP_CHARS for na in value):
+            self._seq_text[index] = value
+            self._seq_pos[index] = [-1] * len(value)
+        else:
+            raise ValueError('invalid input')
+
+    def __len__(self):
+        return len(self._seq_text)
+
+    def __contains__(self, value):
+        return value in self._seq_text
+
+    def __str__(self):
+        return self._seq_text
+
+    def __repr__(self):
+        return self._seq_text
+
+    def __iter__(self):
+        for na, pos in zip(self._seq_text, self._seq_pos):
+            yield PositionalSeqStr(na, pos)
+
+    def __iadd__(self, other):
+        self._seq_text += other._seq_text
+        self._seq_pos += other._seq_pos
+
+    def __add__(self, other):
+        seq_text = self._seq_text + other._seq_text
+        seq_pos = self._seq_pos + other._seq_pos
+        return PositionalSeqStr(seq_text, seq_pos)
+
+    def count(self, *args, **kwargs):
+        return self._seq_text.count(*args, **kwargs)
+
+    def remove_gaps(self):
+        return PositionalSeqStr([
+            (na, pos)
+            for na, pos in zip(self._seq_text, self._seq_pos)
+            if na not in GAP_CHARS
+        ])
+
+    def is_gap(self):
+        return bool(
+            self._seq_text and
+            all(na in GAP_CHARS for na in self._seq_text)
+        )
+
+    @property
+    def pos0(self):
+        if self._seq_pos:
+            return self._seq_pos[0]
+        return None
+
+    @classmethod
+    def join(cls, value):
+        seq_text = ''.join(one._seq_text for one in value)
+        seq_pos = [one._seq_pos for one in value]
+        return cls(seq_text, seq_pos)
+
+
 class Sequence(BaseSequence):
 
     def __new__(
@@ -40,12 +154,13 @@ class Sequence(BaseSequence):
         modifiers_=None,
         skip_invalid=True
     ):
-        seqtext = seqtext.upper()
-        illegal_pattern = ILLEGAL_PATTERNS[seqtype]
-        invalids = illegal_pattern.findall(seqtext)
         if skip_invalid is not SKIP_VALIDATION:
+            seqtext = PositionalSeqStr(seqtext)
+            testseqtext = str(seqtext).upper()
+            illegal_pattern = ILLEGAL_PATTERNS[seqtype]
+            invalids = illegal_pattern.findall(testseqtext)
             if invalids and skip_invalid:
-                seqtext = illegal_pattern.sub('-', seqtext)
+                seqtext = illegal_pattern.sub('-', testseqtext)
             elif invalids:
                 raise ValueError(
                     'sequence {} contains invalid notation(s) ({})'

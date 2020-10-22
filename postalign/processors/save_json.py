@@ -8,8 +8,6 @@ from ..utils import group_by_codons
 
 from .trim_by_ref import find_trim_slice
 
-GAP_CHARS = '-.'
-
 
 @cli.command('save-json')
 @click.option(
@@ -34,47 +32,47 @@ def save_json(trim_by_seq):
                 start, end, _ = slicekey.indices(len(seq))
                 left_reftext = reftext[:start]
                 right_reftext = reftext[end:]
-                for gap in GAP_CHARS:
-                    left_reftext = left_reftext.replace(gap, '')
-                    right_reftext = right_reftext.replace(gap, '')
+                left_reftext = left_reftext.remove_gaps()
+                right_reftext = right_reftext.remove_gaps()
                 refstart = math.ceil(len(left_reftext) / 3)
                 refend = -math.ceil(len(right_reftext) / 3)
                 if refend == 0:
                     refend = None
-            refcodons, seqcodons = group_by_codons(reftext, seqtext, GAP_CHARS)
+            refcodons, seqcodons = group_by_codons(reftext, seqtext)
             codonpairs = []
             aligned_sites = []
             frameshifts = []
-            abs_seqoffset = seq.abs_seqstart
             for pos0, (refcd, seqcd) in enumerate(zip(refcodons, seqcodons)):
-                nalen = sum(na not in GAP_CHARS for na in seqcd)
+                nalen = sum(not na.is_gap() for na in seqcd)
                 if 0 < nalen < 3:
                     ins_fs_len = 0
                     del_fs_len = 3 - nalen
                 else:
                     ins_fs_len = nalen % 3
                     del_fs_len = 0
+                codon_text = ''.join(str(na) for na in seqcd[:3])
                 codonpairs.append({
                     'Position': pos0 + 1,
-                    'RefCodonText': ''.join(refcd[:3]),
-                    'CodonText': ''.join(seqcd[:3]),
+                    'RefCodonText': ''.join(str(na) for na in refcd[:3]),
+                    'CodonText': codon_text,
                     'InsertedCodonsText': ''.join(
-                        seqcd[3:len(seqcd) - ins_fs_len]
+                        str(na) for na in seqcd[3:len(seqcd) - ins_fs_len]
                     ),
                     'IsInsertion': len(refcd) > 3,
-                    'IsDeletion': seqcd == '---'
+                    'IsDeletion': codon_text == '---'
                 })
                 aligned_sites.append({
                     'PosAA': pos0 + 1,  # reference location
-                    'PosNA': abs_seqoffset + 1,
+                    'PosNA': seqcd[0].pos0 + 1,
                     'LengthNA': nalen
                 })
-                abs_seqoffset += nalen
                 if ins_fs_len:
                     frameshifts.append({
                         'Position': pos0 + 1,
                         'GapLength': ins_fs_len,
-                        'NucleicAcidsText': seqcd[-ins_fs_len:],
+                        'NucleicAcidsText': ''.join(
+                            str(na) for na in seqcd[-ins_fs_len:]
+                        ),
                         'IsInsertion': True
                     })
                 elif del_fs_len:

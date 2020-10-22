@@ -8,11 +8,12 @@ RIGHT_TRIM_PATTERN = re.compile(r'[.-]+$')
 
 def find_trim_slice(seq):
     left_trim = None
-    match = LEFT_TRIM_PATTERN.search(seq.seqtext)
+    seqtext_str = str(seq.seqtext)
+    match = LEFT_TRIM_PATTERN.search(seqtext_str)
     if match:
         left_trim = match.span()[1]
     right_trim = None
-    match = RIGHT_TRIM_PATTERN.search(seq.seqtext)
+    match = RIGHT_TRIM_PATTERN.search(seqtext_str)
     if match:
         right_trim = match.span()[0]
     return slice(left_trim, right_trim)

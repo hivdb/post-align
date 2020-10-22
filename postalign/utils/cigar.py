@@ -1,5 +1,6 @@
 import re
 from itertools import groupby
+from ..models.sequence import PositionalSeqStr
 
 CIGAR_PATTERN = re.compile(r'(\d+)([MNDI])')
 
@@ -42,17 +43,17 @@ class CIGAR:
                 offset += num
             elif op in ('D', 'N'):
                 aligned_seq = (aligned_seq[:offset] +
-                               '-' * num +
+                               PositionalSeqStr('-' * num) +
                                aligned_seq[offset:])
                 offset += num
             elif op == 'I':
                 aligned_refseq = (aligned_refseq[:offset] +
-                                  '-' * num +
+                                  PositionalSeqStr('-' * num) +
                                   aligned_refseq[offset:])
                 offset += num
-        aligned_seq = ('-' * (self.ref_start) +
+        aligned_seq = (PositionalSeqStr('-' * (self.ref_start)) +
                        aligned_seq[:offset] +
-                       '-' * (len(aligned_refseq) - offset))
+                       PositionalSeqStr('-' * (len(aligned_refseq) - offset)))
         aligned_refseq = refseq[:self.ref_start] + aligned_refseq
         if len(aligned_refseq) != len(aligned_seq):
             raise ValueError(
