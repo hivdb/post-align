@@ -1,4 +1,3 @@
-import click
 from pafpy import PafRecord, Strand
 
 from ..utils.cigar import CIGAR
@@ -9,27 +8,44 @@ from . import fasta
 def load(paffp, seqs_prior_alignment, reference, seqtype):
     refseq = next(fasta.load(reference, seqtype, remove_gaps=True))
     seqs = fasta.load(seqs_prior_alignment, seqtype, remove_gaps=True)
-    seqs = {seq.header: seq for seq in seqs}
 
     pafs = (paf.strip() for paf in paffp)
     pafs = (PafRecord.from_str(paf) for paf in pafs if paf)
+    pafs = {paf.qname: paf for paf in pafs}
 
-    for paf in pafs:
+    for seq in seqs:
         reftext = refseq.seqtext
         try:
-            seq = seqs[paf.qname]
+            paf = pafs[seq.header]
         except KeyError:
-            click.echo(
-                'Warning: sequence for alignment {!r} '
-                'is not found'
-                .format(paf.qname),
-                err=True)
+            # alignment for sequence is not found
+            yield (
+                refseq.push_seqtext(
+                    '',
+                    modtext='error()',
+                    start_offset=0
+                ),
+                seq.push_seqtext(
+                    '',
+                    modtext='error()',
+                    start_offset=0
+                )
+            )
             continue
         if paf.strand == Strand.Reverse:
-            click.echo(
-                'Warning: skip reverse strand alignment {!r}'
-                .format(paf.qname),
-                err=True)
+            # skip reverse strand alignment
+            yield (
+                refseq.push_seqtext(
+                    '',
+                    modtext='error()',
+                    start_offset=0
+                ),
+                seq.push_seqtext(
+                    '',
+                    modtext='error()',
+                    start_offset=0
+                )
+            )
             continue
         seqtext = seq.seqtext
         seq_start = paf.qstart

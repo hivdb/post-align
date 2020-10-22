@@ -24,6 +24,10 @@ def trim_by_ref():
 
     def processor(iterator):
         for refseq, seq in iterator:
+            if seq.seqtext == '':
+                # skip unaligned sequence
+                yield refseq, seq
+                continue
             sliceobj = find_trim_slice(refseq)
             refseq = refseq[sliceobj]
             seq = seq[sliceobj]

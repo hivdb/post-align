@@ -44,43 +44,77 @@ def save_json(trim_by_seq):
             refcodons, seqcodons = group_by_codons(reftext, seqtext, GAP_CHARS)
             codonpairs = []
             aligned_sites = []
+            frameshifts = []
             abs_seqoffset = seq.abs_seqstart
             for pos0, (refcd, seqcd) in enumerate(zip(refcodons, seqcodons)):
+                nalen = sum(na not in GAP_CHARS for na in seqcd)
+                if 0 < nalen < 3:
+                    ins_fs_len = 0
+                    del_fs_len = 3 - nalen
+                else:
+                    ins_fs_len = nalen % 3
+                    del_fs_len = 0
                 codonpairs.append({
                     'Position': pos0 + 1,
                     'RefCodonText': ''.join(refcd[:3]),
                     'CodonText': ''.join(seqcd[:3]),
-                    'InsertedCodonsText': ''.join(seqcd[3:]),
+                    'InsertedCodonsText': ''.join(
+                        seqcd[3:len(seqcd) - ins_fs_len]
+                    ),
                     'IsInsertion': len(refcd) > 3,
                     'IsDeletion': seqcd == '---'
                 })
-                nalen = sum(na not in GAP_CHARS for na in seqcd)
                 aligned_sites.append({
                     'PosAA': pos0 + 1,  # reference location
                     'PosNA': abs_seqoffset + 1,
                     'LengthNA': nalen
                 })
                 abs_seqoffset += nalen
+                if ins_fs_len:
+                    frameshifts.append({
+                        'Position': pos0 + 1,
+                        'GapLength': ins_fs_len,
+                        'NucleicAcidsText': seqcd[-ins_fs_len:],
+                        'IsInsertion': True
+                    })
+                elif del_fs_len:
+                    frameshifts.append({
+                        'Position': pos0 + 1,
+                        'GapLength': del_fs_len,
+                        'IsInsertion': False
+                    })
             aligned_sites = aligned_sites[refstart:refend]
             codonpairs = codonpairs[refstart:refend]
             mutations = [cd for cd in codonpairs
                          if cd['RefCodonText'] != cd['CodonText'] and
                          not cd['IsInsertion']]
-            text = json.dumps({
-                'Name': seq.header,
+            payload = {
+                'Name': seq.headerdesc,
                 'Modifiers': [[str(mod) for mod in mods]
-                              for _, mods in seq.modifiers],
-                'Report': {
-                    'FirstAA': codonpairs[0]['Position'],
-                    'LastAA': codonpairs[-1]['Position'],
-                    'AlignedSites': aligned_sites,
-                    'Mutations': mutations
-                }
-            }, indent=num_indent)
+                              for _, mods in seq.modifiers]
+            }
+            if codonpairs:
+                payload.update({
+                    'Report': {
+                        'FirstAA': codonpairs[0]['Position'],
+                        'LastAA': codonpairs[-1]['Position'],
+                        'AlignedSites': aligned_sites,
+                        'Mutations': mutations,
+                        'FrameShifts': frameshifts
+                    },
+                    'Error': ''
+                })
+            else:
+                payload.update({
+                    'Report': {},
+                    'Error': 'Sequence is not aligned'
+                })
+
+            text = json.dumps(payload, indent=num_indent)
             if idx > 0:
                 yield ',\n'
             yield indent(text, prefix=' ' * num_indent)
-        yield '\n]'
+        yield '\n]\n'
 
     processor.command_name = 'save-json'
     processor.is_output_command = True

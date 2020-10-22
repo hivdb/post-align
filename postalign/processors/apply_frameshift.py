@@ -67,16 +67,16 @@ def apply_frameshift(frameshift):
     def processor(iterator):
         left_start = left_end = adjusted_refseq = None
         for refseq, seq in iterator:
+            if len(seq) == 0:
+                yield refseq, seq
+                continue
             if adjusted_refseq is None:
                 reflen = len(refseq)
                 breakpoints = [0]
                 for pos, shift in frameshift:
                     if pos > reflen:
-                        raise click.ClickException(
-                            'Frameshift position {} exceeded the size of '
-                            'reference sequence ({}).'
-                            .format(pos, len(refseq))
-                        )
+                        # frameshift is longer than reference
+                        break
                     breakpoints.append(pos)
                     breakpoints.append(pos + shift)
                 breakpoints.append(reflen)

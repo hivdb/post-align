@@ -1,5 +1,4 @@
 import click
-from tqdm import tqdm
 
 from .parsers import msa, paf, fasta, minimap2
 
@@ -142,5 +141,5 @@ def process_pipeline(
         )
     for processor in processors:
         iterator = processor(iterator)
-    for partial in tqdm(iterator):
+    for partial in iterator:
         output.write(partial)

@@ -63,6 +63,13 @@ class Sequence(BaseSequence):
             modifiers_)
 
     @property
+    def headerdesc(self):
+        hd = self.header
+        if self.description:
+            hd += ' ' + self.description
+        return hd
+
+    @property
     def modifiers(self):
         if self.modifiers_ is None:
             return ModifierLinkedList()

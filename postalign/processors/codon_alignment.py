@@ -210,7 +210,11 @@ def codon_alignment(reading_frame, window_size):
                 raise click.ClickException(
                     'Codon alignment only applies to nucleotide '
                     'sequences.')
-            yield codon_align(refseq, seq, reading_frame, window_size)
+            if seq.seqtext == '':
+                # skip empty sequences
+                yield refseq, seq
+            else:
+                yield codon_align(refseq, seq, reading_frame, window_size)
 
     processor.command_name = 'codon-alignment'
     processor.is_output_command = False

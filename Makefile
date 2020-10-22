@@ -17,21 +17,26 @@ dist/linux-amd64: $(shell find postalign -type f -path "*.py" | sed 's#\([| ]\)#
 		--workdir /app --rm -it \
 		hivdb/post-align-builder:latest \
 		pyinstaller postalign/entry.py -n postalign
-	@cd dist/linux-amd64 && \
-		tar zcf postalign_linux-amd64.tar.gz postalign && \
-		mv postalign_linux-amd64.tar.gz ..
 
 dist/darwin-amd64: $(shell find postalign -type f -path "*.py" | sed 's#\([| ]\)#\\\1#g')
+	@rm -rf dist/darwin-amd64
 	@test "$(shell uname)" = "Darwin" && \
 		pipenv run pyinstaller postalign/entry.py -n postalign --distpath ./dist/darwin-amd64
 	@rm ./postalign.spec
+
+dist/postalign_linux-amd64.tar.gz: dist/linux-amd64 
+	@cd dist/linux-amd64 && \
+		rm -f postalign_linux-amd64.tar.gz && \
+		tar zcf postalign_linux-amd64.tar.gz postalign && \
+		mv postalign_linux-amd64.tar.gz ..
+
+dist/postalign_darwin-amd64.tar.gz: dist/darwin-amd64
 	@cd dist/darwin-amd64 && \
+		rm -f postalign_darwin-amd64.tar.gz && \
 		tar zcf postalign_darwin-amd64.tar.gz postalign && \
 		mv postalign_darwin-amd64.tar.gz ..
 
-dist/postalign_linux-amd64.tar.gz: dist/linux-amd64 dist/darwin-amd64
-
-dist: dist/postalign_linux-amd64.tar.gz
+dist: dist/postalign_linux-amd64.tar.gz dist/postalign_darwin-amd64.tar.gz
 build: dist
 
 .PHONY: build-builder

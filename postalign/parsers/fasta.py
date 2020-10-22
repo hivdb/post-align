@@ -17,7 +17,7 @@ def load(fp, seqtype, *, remove_gaps=False):
 
         headerdesc = header.split(' ', 1)
         description = ''
-        if len(header) == 2:
+        if len(headerdesc) == 2:
             description = headerdesc[1]
         return Sequence(
             header=headerdesc[0],
