@@ -63,7 +63,9 @@ def save_json(trim_by_seq):
                 })
                 aligned_sites.append({
                     'PosAA': pos0 + 1,  # reference location
-                    'PosNA': seqcd[0].pos0 + 1,
+                    # 'PosNA': seqcd[0].pos0 + 1,
+                    'PosNAs': [na.pos0 + 1 if na.pos0 > -1 else None
+                               for na in seqcd],
                     'LengthNA': nalen
                 })
                 if ins_fs_len:

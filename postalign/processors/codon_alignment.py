@@ -1,5 +1,5 @@
 import click
-from itertools import chain
+from itertools import chain, groupby
 
 from ..cli import cli
 from ..utils import group_by_codons
@@ -39,10 +39,11 @@ def move_gap_to_codon_end(codons):
 
 def calc_match_score(mynas, othernas):
     # TODO: use blosum62 to calculate
-    return sum(myna == otherna for myna, otherna in zip(mynas, othernas))
+    return sum(str(myna) == str(otherna)
+               for myna, otherna in zip(mynas, othernas))
 
 
-def find_best_matches(mynas, othernas, scanstart=0, scanstep=1):
+def find_best_matches(mynas, othernas, bp1_indices, scanstart=0, scanstep=1):
     orig_gapidx = list_index(mynas, lambda na: na.is_gap())
     mygap = [na for na in mynas if na.is_gap()]
     mynas = [na for na in mynas if not na.is_gap()]
@@ -52,7 +53,10 @@ def find_best_matches(mynas, othernas, scanstart=0, scanstep=1):
         test_mynas = mynas[::]
         test_mynas[idx:idx] = mygap
         score = calc_match_score(test_mynas, othernas)
-        if idx == orig_gapidx:
+        if idx in bp1_indices:
+            # reward gaps inserted between codons
+            score = (score + 1, 2)
+        elif idx == orig_gapidx:
             # respect the original gapidx if it's already one of the best
             score = (score, 1)
         else:
@@ -66,11 +70,62 @@ def find_best_matches(mynas, othernas, scanstart=0, scanstep=1):
 
 
 def paired_find_best_matches(refnas, seqnas):
+    bp1_indices = set()
+    bp = 0
+    for idx, na in enumerate(refnas):
+        if na.is_gap():
+            continue
+        bp = (bp + 1) % 3
+        if bp == 1:
+            bp1_indices.add(idx)
+
     if any(na.is_gap() for na in refnas):
-        refnas = find_best_matches(refnas, seqnas, scanstart=3, scanstep=3)
+        refnas = find_best_matches(refnas, seqnas, bp1_indices,
+                                   scanstart=3, scanstep=3)
     elif any(na.is_gap() for na in seqnas):
-        seqnas = find_best_matches(seqnas, refnas, scanstart=0, scanstep=1)
+        seqnas = find_best_matches(seqnas, refnas, bp1_indices,
+                                   scanstart=0, scanstep=1)
     return refnas, seqnas
+
+
+NOGAP = 0b00
+REFGAP = 0b01
+SEQGAP = 0b10
+
+
+def codon_pairs_group_key(cdpair):
+    _, (refcd, seqcd) = cdpair
+    if any(na.is_gap() for na in refcd):
+        return REFGAP
+    if any(na.is_gap() for na in seqcd):
+        return SEQGAP
+    return NOGAP
+
+
+LEFT = 0b00
+RIGHT = 0b01
+
+
+def ensure_no_gap_ext_codons(ref_codons, seq_codons, side):
+    if side == LEFT:
+        ref_codons.reverse()
+        seq_codons.reverse()
+    for idx, (refcd, seqcd) in enumerate(zip(ref_codons, seq_codons)):
+        for na in chain(refcd, seqcd):
+            if na.is_gap():
+                break
+        else:
+            continue
+        break
+    else:
+        # no gap in ext codons
+        idx += 1
+    ref_codons = ref_codons[:idx]
+    seq_codons = seq_codons[:idx]
+    if side == LEFT:
+        ref_codons.reverse()
+        seq_codons.reverse()
+    return tuple(ref_codons), tuple(seq_codons), len(ref_codons)
 
 
 def realign_gaps(refnas, seqnas, window_size):
@@ -78,6 +133,7 @@ def realign_gaps(refnas, seqnas, window_size):
     refcodons = move_gap_to_codon_end(refcodons)
     seqcodons = move_gap_to_codon_end(seqcodons)
 
+    # First gather gaps together according to window
     for pointer in range(0, len(refcodons) - window_size):
         slicekey = slice(pointer, pointer + window_size)
         win_refcodons = refcodons[slicekey]
@@ -95,12 +151,51 @@ def realign_gaps(refnas, seqnas, window_size):
         else:
             win_seqnas = window_gather_nearby_gaps(win_seqnas)
         win_refnas, win_seqnas = clean_nalist_pairs(win_refnas, win_seqnas)
-        win_refnas, win_seqnas = \
-            paired_find_best_matches(win_refnas, win_seqnas)
         (win_refcodons,
          win_seqcodons) = group_by_codons(win_refnas, win_seqnas)
         refcodons[slicekey] = win_refcodons
         seqcodons[slicekey] = win_seqcodons
+
+    # Then adjust continuous refgap/seqgap placement
+    gap_groups = groupby(
+        enumerate(zip(refcodons,
+                      seqcodons)),
+        codon_pairs_group_key)
+    for gap_type, codonpairs in gap_groups:
+        if gap_type == NOGAP:
+            continue
+        refpos0, codonpairs = list(zip(*codonpairs))
+        start, end = refpos0[0], refpos0[-1] + 1
+        (refcds,
+         seqcds) = list(zip(*codonpairs))
+
+        # extend refcds/seqcds
+        ext_refcds, ext_seqcds, offset = ensure_no_gap_ext_codons(
+            refcodons[max(0, start - window_size):start],
+            seqcodons[max(0, start - window_size):start],
+            LEFT
+        )
+        refcds = ext_refcds + refcds
+        seqcds = ext_seqcds + seqcds
+        start -= offset
+
+        ext_refcds, ext_seqcds, offset = ensure_no_gap_ext_codons(
+            refcodons[end:end + window_size],
+            seqcodons[end:end + window_size],
+            RIGHT
+        )
+        refcds = refcds + ext_refcds
+        seqcds = seqcds + ext_seqcds
+        end += offset
+
+        win_refnas = list(chain(*refcds))
+        win_seqnas = list(chain(*seqcds))
+        win_refnas, win_seqnas = \
+            paired_find_best_matches(win_refnas, win_seqnas)
+        (win_refcodons,
+         win_seqcodons) = group_by_codons(win_refnas, win_seqnas)
+        refcodons[start:end] = win_refcodons
+        seqcodons[start:end] = win_seqcodons
 
     return list(chain(*refcodons)), list(chain(*seqcodons))
 
