@@ -110,6 +110,7 @@ def ensure_no_gap_ext_codons(ref_codons, seq_codons, side):
     if side == LEFT:
         ref_codons.reverse()
         seq_codons.reverse()
+    idx = -1
     for idx, (refcd, seqcd) in enumerate(zip(ref_codons, seq_codons)):
         for na in chain(refcd, seqcd):
             if na.is_gap():

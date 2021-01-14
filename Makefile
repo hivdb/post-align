@@ -36,7 +36,7 @@ dist/postalign_darwin-amd64.tar.gz: dist/darwin-amd64
 		tar zcf postalign_darwin-amd64.tar.gz postalign && \
 		mv postalign_darwin-amd64.tar.gz ..
 
-dist: dist/postalign_linux-amd64.tar.gz dist/postalign_darwin-amd64.tar.gz
+dist: dist/postalign_linux-amd64.tar.gz #dist/postalign_darwin-amd64.tar.gz
 build: dist
 
 .PHONY: build-builder
