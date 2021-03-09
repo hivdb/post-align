@@ -1,7 +1,8 @@
-requirement.txt: Pipfile.lock
+requirements.txt: Pipfile.lock
 	@pipenv lock --dev --requirements > requirements.txt
+	@sed -i '' '/^-e \.$$/d' requirements.txt
 
-build-docker-builder: requirement.txt
+build-docker-builder: requirements.txt
 	@docker pull ubuntu:18.04
 	@docker build . --no-cache -t hivdb/post-align-builder:latest
 
@@ -36,7 +37,7 @@ dist/postalign_darwin-amd64.tar.gz: dist/darwin-amd64
 		tar zcf postalign_darwin-amd64.tar.gz postalign && \
 		mv postalign_darwin-amd64.tar.gz ..
 
-dist: dist/postalign_linux-amd64.tar.gz #dist/postalign_darwin-amd64.tar.gz
+dist: dist/postalign_linux-amd64.tar.gz dist/postalign_darwin-amd64.tar.gz
 build: dist
 
-.PHONY: build-builder
+.PHONY: build-docker-builder push-docker-builder

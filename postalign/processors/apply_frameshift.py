@@ -1,5 +1,7 @@
 import re
 import click
+from functools import reduce
+from operator import add
 from more_itertools import chunked
 
 from ..cli import cli
@@ -65,30 +67,35 @@ def apply_frameshift(frameshift):
     """
 
     def processor(iterator):
-        left_start = left_end = adjusted_refseq = None
+        idx_breakpoints = []
+        adjusted_refseq = None
         for refseq, seq in iterator:
             if len(seq) == 0:
                 yield refseq, seq
                 continue
             if adjusted_refseq is None:
-                reflen = len(refseq)
-                breakpoints = [0]
+                breakpoints = [1]
                 for pos, shift in frameshift:
-                    if pos > reflen:
-                        # frameshift is longer than reference
-                        break
                     breakpoints.append(pos)
-                    breakpoints.append(pos + shift)
-                breakpoints.append(reflen)
-                [(left_start, left_end),
-                 *slicetuples] = list(chunked(breakpoints, 2))
-                adjusted_refseq = refseq[left_start:left_end]
-                for start, end in slicetuples:
-                    adjusted_refseq += refseq[start:end]
-            adjusted_seq = seq[left_start:left_end]
-            for start, end in slicetuples:
-                adjusted_seq += seq[start:end]
-            yield (adjusted_refseq, adjusted_seq)
+                    breakpoints.append(pos + shift + 1)
+                breakpoints.append(
+                    max(breakpoints[-1], refseq.seqtext.max_pos)
+                )
+                breakpoints = list(chunked(breakpoints, 2))
+                adjusted_refseq = []
+                for pos_start, pos_end in breakpoints:
+                    idx_start, idx_end = refseq.seqtext.posrange2indexrange(
+                        pos_start, pos_end
+                    )
+                    idx_breakpoints.append((idx_start, idx_end))
+                    adjusted_refseq.append(refseq[idx_start:idx_end])
+                adjusted_refseq = reduce(add, adjusted_refseq)
+
+            adjusted_seq = []
+            for idx_start, idx_end in idx_breakpoints:
+                adjusted_seq.append(seq[idx_start:idx_end])
+            adjusted_seq = reduce(add, adjusted_seq)
+            yield adjusted_refseq, adjusted_seq
 
     processor.command_name = 'apply-frameshift'
     processor.is_output_command = False

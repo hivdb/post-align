@@ -28,7 +28,7 @@ BaseSequence = namedtuple(
 
 
 def enumerate_seq_pos(seq_text):
-    offset = 0
+    offset = 1
     seq_pos = []
     for na in seq_text:
         if na in GAP_CHARS:
@@ -41,49 +41,113 @@ def enumerate_seq_pos(seq_text):
 
 class PositionalSeqStr:
 
-    def __init__(self, seq_text, seq_pos=None):
+    def __init__(self, seq_text, seq_pos=None, seq_flag=None):
         if not seq_text:
             self._seq_text = ''
             self._seq_pos = []
+            self._seq_flag = []
         elif isinstance(seq_text, PositionalSeqStr):
             self._seq_text = seq_text._seq_text
             self._seq_pos = seq_text._seq_pos
+            self._seq_flag = seq_text._seq_flag
         elif isinstance(seq_text, list):
-            if isinstance(seq_text[0], tuple):
-                self._seq_text, self._seq_pos = list(zip(*seq_text))
+            if isinstance(seq_text[0], tuple) and len(seq_text[0]) == 3:
+                (self._seq_text,
+                 self._seq_pos,
+                 self._seq_flag) = list(zip(*seq_text))
             elif isinstance(seq_text[0], PositionalSeqStr):
                 temp = PositionalSeqStr.join(seq_text)
                 self._seq_text = temp._seq_text
                 self._seq_pos = temp._seq_pos
+                self._seq_flag = temp._seq_flag
             else:
                 raise ValueError('invalid input')
-        elif seq_pos is None:
+        elif seq_pos is None and seq_flag is None:
+            # used by utils.cigar
             self._seq_text = seq_text.upper()
             self._seq_pos = enumerate_seq_pos(seq_text)
-        elif isinstance(seq_pos, int):
+            self._seq_flag = [set() for _ in self._seq_pos]
+        elif isinstance(seq_pos, int) and isinstance(seq_flag, set):
+            # used by __getitem__
             self._seq_text = seq_text.upper()
             self._seq_pos = [seq_pos]
-        elif len(seq_text) == len(seq_pos):
+            self._seq_flag = [seq_flag]
+        elif len(seq_text) == len(seq_pos) == len(seq_flag):
             self._seq_text = seq_text.upper()
             self._seq_pos = seq_pos
+            self._seq_flag = seq_flag
         else:
             raise ValueError('invalid input')
+        non_gap_pos = [pos for pos in self._seq_pos if pos > 0]
+        self.min_pos = self.max_pos = None
+        if non_gap_pos:
+            self.empty = False
+            self.min_pos = min(non_gap_pos)
+            self.max_pos = max(non_gap_pos)
+        else:
+            self.empty = True
+
+    def set_flag(self, flag):
+        for one in self._seq_flag:
+            one.add(flag)
+
+    def any_has_flag(self, flag):
+        return any(flag in one for one in self._seq_flag)
+
+    def all_have_flag(self, flag):
+        return all(flag in one for one in self._seq_flag)
+
+    def pos2index(self, pos, first):
+        if first == 'first':
+            return self._seq_pos.index(pos)
+        elif first == 'last':
+            return len(self._seq_pos) - self._seq_pos[-1::-1].index(pos) - 1
+        else:
+            raise ValueError('invalid second parameter')
+
+    def posrange2indexrange(self, pos_start, pos_end):
+        if self.empty:
+            return 0, 0
+        if pos_start > self.max_pos:
+            idx_start = idx_end = self.pos2index(self.max_pos, 'last')
+        elif pos_end < self.min_pos:
+            idx_start = idx_end = self.pos2index(self.min_pos, 'first')
+        else:
+            pos_start = max(self.min_pos, pos_start)
+            pos_end = min(self.max_pos, pos_end)
+            for pos in range(pos_start, pos_end + 1):
+                try:
+                    idx_start = self.pos2index(pos, 'first')
+                    break
+                except ValueError:
+                    continue
+            for pos in range(pos_end, pos_start - 1, -1):
+                try:
+                    idx_end = self.pos2index(pos, 'last') + 1
+                    break
+                except ValueError:
+                    continue
+        return idx_start, idx_end
 
     def __getitem__(self, index):
         return PositionalSeqStr(
             self._seq_text[index],
-            self._seq_pos[index])
+            self._seq_pos[index],
+            self._seq_flag[index])
 
     def __setitem__(self, index, value):
         if isinstance(value, PositionalSeqStr):
             self._seq_text[index] = value._seq_text
             self._seq_pos[index] = value._seq_pos
+            self._seq_flag[index] = value._seq_flag
         elif not value:
             self._seq_text[index] = ''
             self._seq_pos[index] = []
+            self._seq_flag[index] = []
         elif all(na in GAP_CHARS for na in value):
             self._seq_text[index] = value
             self._seq_pos[index] = [-1] * len(value)
+            self._seq_flag[index] = [set() for _ in value]
         else:
             raise ValueError('invalid input')
 
@@ -100,25 +164,31 @@ class PositionalSeqStr:
         return self._seq_text
 
     def __iter__(self):
-        for na, pos in zip(self._seq_text, self._seq_pos):
-            yield PositionalSeqStr(na, pos)
+        for na, pos, flag in zip(self._seq_text,
+                                 self._seq_pos,
+                                 self._seq_flag):
+            yield PositionalSeqStr(na, pos, flag)
 
     def __iadd__(self, other):
         self._seq_text += other._seq_text
         self._seq_pos += other._seq_pos
+        self._seq_flag += other._seq_flag
 
     def __add__(self, other):
         seq_text = self._seq_text + other._seq_text
         seq_pos = self._seq_pos + other._seq_pos
-        return PositionalSeqStr(seq_text, seq_pos)
+        seq_flag = self._seq_flag + other._seq_flag
+        return PositionalSeqStr(seq_text, seq_pos, seq_flag)
 
     def count(self, *args, **kwargs):
         return self._seq_text.count(*args, **kwargs)
 
     def remove_gaps(self):
         return PositionalSeqStr([
-            (na, pos)
-            for na, pos in zip(self._seq_text, self._seq_pos)
+            (na, pos, flag)
+            for na, pos, flag in zip(self._seq_text,
+                                     self._seq_pos,
+                                     self._seq_flag)
             if na not in GAP_CHARS
         ])
 
@@ -127,12 +197,6 @@ class PositionalSeqStr:
             self._seq_text and
             all(na in GAP_CHARS for na in self._seq_text)
         )
-
-    @property
-    def pos0(self):
-        if self._seq_pos:
-            return self._seq_pos[0]
-        return None
 
     @classmethod
     def join(cls, value):

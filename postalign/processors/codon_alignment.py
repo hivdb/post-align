@@ -1,8 +1,12 @@
 import click
+from operator import add
+from functools import reduce
 from itertools import chain, groupby
 
 from ..cli import cli
 from ..utils import group_by_codons
+from ..utils.codonutils import translate_codons
+from ..utils.blosum62 import blosum62_score
 
 
 def list_index(listdata, cond, start=0):
@@ -38,9 +42,12 @@ def move_gap_to_codon_end(codons):
 
 
 def calc_match_score(mynas, othernas):
-    # TODO: use blosum62 to calculate
-    return sum(str(myna) == str(otherna)
-               for myna, otherna in zip(mynas, othernas))
+    myaas = translate_codons(mynas)
+    otheraas = translate_codons(othernas)
+    score = 0
+    for myaa, otheraa in zip(myaas, otheraas):
+        score += blosum62_score(myaa, otheraa)
+    return score
 
 
 def find_best_matches(mynas, othernas, bp1_indices, scanstart=0, scanstep=1):
@@ -244,7 +251,7 @@ def clean_nalist_pairs(refnas, seqnas):
     return new_refnas, new_seqnas
 
 
-def codon_align(refseq, seq, reading_frame, window_size):
+def codon_align(refseq, seq, window_size, refstart, refend):
 
     reftext = refseq.seqtext
     if reftext[0].is_gap() or reftext[-1].is_gap():
@@ -254,10 +261,14 @@ def codon_align(refseq, seq, reading_frame, window_size):
             'the alignments by command "trim-by-ref".'
         )
 
+    idxstart, idxend = reftext.posrange2indexrange(refstart, refend)
+    if idxstart == idxend:
+        # nothing to be codon aligned
+        return refseq, seq
+
     # step 1: apply reading frame
-    refstart = seqstart = reading_frame - 1
-    reftext = reftext[refstart:]
-    seqtext = seq.seqtext[seqstart:]
+    reftext = reftext[idxstart:idxend]
+    seqtext = seq.seqtext[idxstart:idxend]
 
     # step 2: remove matched gaps (due to MSA) from ref and seq
     refnas, seqnas = clean_nalist_pairs(reftext, seqtext)
@@ -266,19 +277,20 @@ def codon_align(refseq, seq, reading_frame, window_size):
     refnas, seqnas = realign_gaps(refnas, seqnas, window_size)
 
     # last step: save "codon aligned" refseq and seq
-    refseq = refseq.push_seqtext(refnas, 'codonalign()', refstart)
-    seq = seq.push_seqtext(seqnas, 'codonalign()', seqstart)
+    refseq = refseq.push_seqtext(
+        refseq.seqtext[:idxstart] +
+        reduce(add, refnas) +
+        refseq.seqtext[idxend:],
+        'codonalign({},{})'.format(refstart, refend), 0)
+    seq = seq.push_seqtext(
+        seq.seqtext[:idxstart] +
+        reduce(add, seqnas) +
+        seq.seqtext[idxend:],
+        'codonalign({},{})'.format(refstart, refend), 0)
     return refseq, seq
 
 
 @cli.command('codon-alignment')
-@click.option(
-    '--reading-frame',
-    type=click.Choice([1, 2, 3]),
-    default=1,
-    help=(
-        'Reading frame where codon-alignment started'
-    ))
 @click.option(
     '--window-size',
     type=int,
@@ -286,24 +298,50 @@ def codon_align(refseq, seq, reading_frame, window_size):
     help=(
         'Window size as # of codons for frameshift compensation'
     ))
-def codon_alignment(reading_frame, window_size):
+@click.argument(
+    'ref_start', type=int, default=1
+)
+@click.argument(
+    'ref_end', type=int, default=-1
+)
+def codon_alignment(window_size, ref_start, ref_end):
     """Codon alignment
 
     A blackbox re-implementation of the "codon-align" tool
     created by LANL HIV Sequence Database.
+
+    The arguments <REF_START> and <REF_END> provide the position range
+    (relative to ref. sequence) where the codon alignment should be applied.
     """
+    if ref_start < 1:
+        raise click.ClickException(
+            'argument <REF_START>:{} must be not less than 1'.format(ref_start)
+        )
+    if ref_end > 0 and ref_end - 2 < ref_start:
+        raise click.ClickException(
+            'no enough codon between arguments <REF_START>:{} and <REF_END>:{}'
+            .format(ref_start, ref_end)
+        )
 
     def processor(iterator):
         for refseq, seq in iterator:
+            my_ref_end = ref_end
+            if my_ref_end <= 0:
+                my_ref_end = refseq.seqtext.max_pos
             if refseq.seqtype != 'NA':
                 raise click.ClickException(
                     'Codon alignment only applies to nucleotide '
                     'sequences.')
-            if seq.seqtext == '':
+            if len(seq.seqtext) == 0:
                 # skip empty sequences
                 yield refseq, seq
             else:
-                yield codon_align(refseq, seq, reading_frame, window_size)
+                yield codon_align(
+                    refseq,
+                    seq,
+                    window_size,
+                    ref_start, my_ref_end
+                )
 
     processor.command_name = 'codon-alignment'
     processor.is_output_command = False

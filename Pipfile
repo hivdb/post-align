@@ -5,7 +5,7 @@ verify_ssl = true
 
 [dev-packages]
 ipython = "*"
-pyinstaller = "*"
+pyinstaller = ">=4.2"
 post-align = {editable = true, path = "."}
 
 [packages]
