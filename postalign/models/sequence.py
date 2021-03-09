@@ -4,6 +4,7 @@ from collections import namedtuple
 from .modifier import ModifierLinkedList
 
 GAP_CHARS = '.-'
+GAP_PATTERN = re.compile(r'^[.-]+$')
 
 SEQTYPES = ['NA']  # currently we don't support AA sequence
 
@@ -78,14 +79,26 @@ class PositionalSeqStr:
             self._seq_flag = seq_flag
         else:
             raise ValueError('invalid input')
-        non_gap_pos = [pos for pos in self._seq_pos if pos > 0]
-        self.min_pos = self.max_pos = None
-        if non_gap_pos:
-            self.empty = False
-            self.min_pos = min(non_gap_pos)
-            self.max_pos = max(non_gap_pos)
-        else:
-            self.empty = True
+
+    @property
+    def min_pos(self):
+        if not hasattr(self, '_min_pos'):
+            self._min_pos = next(
+                (pos for pos in self._seq_pos if pos > 0), None
+            )
+        return self._min_pos
+
+    @property
+    def max_pos(self):
+        if not hasattr(self, '_max_pos'):
+            self._max_pos = next(
+                (pos for pos in reversed(self._seq_pos) if pos > 0), None
+            )
+        return self._max_pos
+
+    @property
+    def empty(self):
+        return self.min_pos is None
 
     def set_flag(self, flag):
         for one in self._seq_flag:
@@ -193,16 +206,19 @@ class PositionalSeqStr:
         ])
 
     def is_gap(self):
-        return bool(
-            self._seq_text and
-            all(na in GAP_CHARS for na in self._seq_text)
-        )
+        if not hasattr(self, '_is_gap'):
+            self._is_gap = bool(
+                self._seq_text and
+                GAP_PATTERN.match(self._seq_text)
+            )
+        return self._is_gap
 
     @classmethod
     def join(cls, value):
         seq_text = ''.join(one._seq_text for one in value)
-        seq_pos = [one._seq_pos for one in value]
-        return cls(seq_text, seq_pos)
+        seq_pos = [pos for one in value for pos in one._seq_pos]
+        seq_flag = [flag for one in value for flag in one._seq_flag]
+        return cls(seq_text, seq_pos, seq_flag)
 
 
 class Sequence(BaseSequence):

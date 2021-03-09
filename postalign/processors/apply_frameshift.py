@@ -67,34 +67,31 @@ def apply_frameshift(frameshift):
     """
 
     def processor(iterator):
-        idx_breakpoints = []
-        adjusted_refseq = None
+
         for refseq, seq in iterator:
             if len(seq) == 0:
                 yield refseq, seq
                 continue
-            if adjusted_refseq is None:
-                breakpoints = [1]
-                for pos, shift in frameshift:
-                    breakpoints.append(pos)
-                    breakpoints.append(pos + shift + 1)
-                breakpoints.append(
-                    max(breakpoints[-1], refseq.seqtext.max_pos)
-                )
-                breakpoints = list(chunked(breakpoints, 2))
-                adjusted_refseq = []
-                for pos_start, pos_end in breakpoints:
-                    idx_start, idx_end = refseq.seqtext.posrange2indexrange(
-                        pos_start, pos_end
-                    )
-                    idx_breakpoints.append((idx_start, idx_end))
-                    adjusted_refseq.append(refseq[idx_start:idx_end])
-                adjusted_refseq = reduce(add, adjusted_refseq)
 
+            breakpoints = [1]
+            for pos, shift in frameshift:
+                breakpoints.append(pos)
+                breakpoints.append(pos + shift + 1)
+            breakpoints.append(
+                max(breakpoints[-1], refseq.seqtext.max_pos)
+            )
+            breakpoints = list(chunked(breakpoints, 2))
+            adjusted_refseq = []
             adjusted_seq = []
-            for idx_start, idx_end in idx_breakpoints:
+            for pos_start, pos_end in breakpoints:
+                idx_start, idx_end = refseq.seqtext.posrange2indexrange(
+                    pos_start, pos_end
+                )
+                adjusted_refseq.append(refseq[idx_start:idx_end])
                 adjusted_seq.append(seq[idx_start:idx_end])
+            adjusted_refseq = reduce(add, adjusted_refseq)
             adjusted_seq = reduce(add, adjusted_seq)
+
             yield adjusted_refseq, adjusted_seq
 
     processor.command_name = 'apply-frameshift'

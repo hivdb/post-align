@@ -1,10 +1,9 @@
 import click
-from operator import add
-from functools import reduce
 from itertools import chain, groupby
 
 from ..cli import cli
 from ..utils import group_by_codons
+from ..models.sequence import PositionalSeqStr
 from ..utils.codonutils import translate_codons
 from ..utils.blosum62 import blosum62_score
 
@@ -241,14 +240,11 @@ def clean_nalist_pairs(refnas, seqnas):
                  These two are "matched gaps" and can be
                  removed from pairwise alignment
     """
-    new_refnas = []
-    new_seqnas = []
-    for refna, seqna in zip(refnas, seqnas):
-        if refna.is_gap() and seqna.is_gap():
-            continue
-        new_refnas.append(refna)
-        new_seqnas.append(seqna)
-    return new_refnas, new_seqnas
+    return list(zip(*[
+        (refna, seqna)
+        for refna, seqna in zip(refnas, seqnas)
+        if not refna.is_gap() or not seqna.is_gap()
+    ]))
 
 
 def codon_align(refseq, seq, window_size, refstart, refend):
@@ -279,12 +275,12 @@ def codon_align(refseq, seq, window_size, refstart, refend):
     # last step: save "codon aligned" refseq and seq
     refseq = refseq.push_seqtext(
         refseq.seqtext[:idxstart] +
-        reduce(add, refnas) +
+        PositionalSeqStr.join(refnas) +
         refseq.seqtext[idxend:],
         'codonalign({},{})'.format(refstart, refend), 0)
     seq = seq.push_seqtext(
         seq.seqtext[:idxstart] +
-        reduce(add, seqnas) +
+        PositionalSeqStr.join(seqnas) +
         seq.seqtext[idxend:],
         'codonalign({},{})'.format(refstart, refend), 0)
     return refseq, seq

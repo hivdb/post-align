@@ -92,7 +92,8 @@ def save_json(trim_by_seq, gene_range_triples):
                 codonpairs = []
                 aligned_sites = []
                 frameshifts = []
-                for pos0, (refcd, seqcd) in enumerate(zip(refcodons, seqcodons)):
+                for pos0, (refcd, seqcd) in enumerate(zip(refcodons,
+                                                          seqcodons)):
                     # pos0 = (min(na.min_pos for na in refcd
                     #             if na.min_pos) - refstart) // 3
                     nalen = sum(not na.is_gap() for na in seqcd)

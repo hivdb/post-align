@@ -1,16 +1,20 @@
 def group_by_codons(refnas, seqnas):
     refcodons = []
     seqcodons = []
+    lastrefcodon = None
+    lastseqcodon = None
     bp = -1
     for refna, seqna in zip(refnas, seqnas):
         if not refna.is_gap():
             bp = (bp + 1) % 3
             if bp == 0:
                 # begin new codon
-                refcodons.append([])
-                seqcodons.append([])
-        refcodons[-1].append(refna)
-        seqcodons[-1].append(seqna)
+                lastrefcodon = []
+                lastseqcodon = []
+                refcodons.append(lastrefcodon)
+                seqcodons.append(lastseqcodon)
+        lastrefcodon.append(refna)
+        lastseqcodon.append(seqna)
     return refcodons, seqcodons
 
 

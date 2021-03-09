@@ -88,6 +88,10 @@ def seqs_prior_alignment_callback(ctx, param, value):
     '-V/-q', '--verbose/--quiet',
     default=True,
     help='Verbose/quiet output')
+@click.option(
+    '--enable-profile/--disable-profile',
+    default=False,
+    help='Enable cProfile')
 def cli(
     input_alignment,
     seqs_prior_alignment,
@@ -95,9 +99,16 @@ def cli(
     alignment_format,
     reference,
     nucleotides,
-    verbose
+    verbose,
+    enable_profile
 ):
     pass
+
+
+def call_processors(processors, iterator):
+    for processor in processors:
+        iterator = processor(iterator)
+    yield from iterator
 
 
 @cli.resultcallback()
@@ -109,7 +120,8 @@ def process_pipeline(
     alignment_format,
     reference,
     nucleotides,
-    verbose
+    verbose,
+    enable_profile
 ):
     # TODO: verify if processors is ended with an output method
     if not processors:
@@ -139,7 +151,14 @@ def process_pipeline(
         raise click.ClickException(
             'Unsupport alignment format: {}'.format(alignment_format)
         )
-    for processor in processors:
-        iterator = processor(iterator)
-    for partial in iterator:
-        output.write(partial)
+    if enable_profile:
+        import cProfile
+        import pstats
+        with cProfile.Profile() as profile:
+            for partial in call_processors(processors, iterator):
+                output.write(partial)
+            ps = pstats.Stats(profile)
+            ps.print_stats()
+    else:
+        for partial in call_processors(processors, iterator):
+            output.write(partial)
