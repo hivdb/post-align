@@ -113,7 +113,7 @@ def translate_codon(nas, fs_as='X', del_as='-'):
     if del_as and len(nas) == 3 and all(na.is_gap() for na in nas):
         # codon is a in-frame deletion
         return del_as
-    if fs_as and any(na.is_gap() for na in nas):
+    if fs_as and (len(nas) < 3 or any(na.is_gap() for na in nas)):
         # codon contains out-frame deletion
         return fs_as
     nas = ''.join(str(na) for na in nas)

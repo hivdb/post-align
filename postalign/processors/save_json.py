@@ -94,6 +94,9 @@ def save_json(trim_by_seq, gene_range_triples):
                 frameshifts = []
                 for pos0, (refcd, seqcd) in enumerate(zip(refcodons,
                                                           seqcodons)):
+                    if len(refcd) < 3:
+                        # partial matched reference, skip
+                        continue
                     # pos0 = (min(na.min_pos for na in refcd
                     #             if na.min_pos) - refstart) // 3
                     nalen = sum(not na.is_gap() for na in seqcd)
