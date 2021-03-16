@@ -53,7 +53,7 @@ def find_best_matches(mynas, othernas, bp1_indices, scanstart=0, scanstep=1):
     orig_gapidx = list_index(mynas, lambda na: na.is_gap())
     mygap = [na for na in mynas if na.is_gap()]
     mynas = [na for na in mynas if not na.is_gap()]
-    max_score = (-1, -1)
+    max_score = None
     best_mynas = None
     for idx in range(scanstart, len(mynas) + 1, scanstep):
         test_mynas = mynas[::]
@@ -67,11 +67,12 @@ def find_best_matches(mynas, othernas, bp1_indices, scanstart=0, scanstep=1):
             score = (score, 1)
         else:
             score = (score, 0)
-        if score > max_score:
+        if max_score is None or score > max_score:
             max_score = score
             best_mynas = test_mynas
     if best_mynas is None:
-        best_mynas = mygap
+        # fallback to mynas, if no best match is found
+        best_mynas = mynas
     return best_mynas
 
 

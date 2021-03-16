@@ -13,8 +13,9 @@ def group_by_codons(refnas, seqnas):
                 lastseqcodon = []
                 refcodons.append(lastrefcodon)
                 seqcodons.append(lastseqcodon)
-        lastrefcodon.append(refna)
-        lastseqcodon.append(seqna)
+        if lastrefcodon is not None:
+            lastrefcodon.append(refna)
+            lastseqcodon.append(seqna)
     return refcodons, seqcodons
 
 
