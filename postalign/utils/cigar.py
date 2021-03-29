@@ -43,17 +43,21 @@ class CIGAR:
                 offset += num
             elif op in ('D', 'N'):
                 aligned_seq = (aligned_seq[:offset] +
-                               PositionalSeqStr('-' * num) +
+                               PositionalSeqStr.init_gaps(gaplen=num) +
                                aligned_seq[offset:])
                 offset += num
             elif op == 'I':
                 aligned_refseq = (aligned_refseq[:offset] +
-                                  PositionalSeqStr('-' * num) +
+                                  PositionalSeqStr.init_gaps(gaplen=num) +
                                   aligned_refseq[offset:])
                 offset += num
-        aligned_seq = (PositionalSeqStr('-' * (self.ref_start)) +
-                       aligned_seq[:offset] +
-                       PositionalSeqStr('-' * (len(aligned_refseq) - offset)))
+        aligned_seq = (
+            PositionalSeqStr.init_gaps(gaplen=self.ref_start) +
+            aligned_seq[:offset] +
+            PositionalSeqStr.init_gaps(
+                gaplen=len(aligned_refseq) - offset
+            )
+        )
         aligned_refseq = refseq[:self.ref_start] + aligned_refseq
         if len(aligned_refseq) != len(aligned_seq):
             raise ValueError(

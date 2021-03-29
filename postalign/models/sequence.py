@@ -5,6 +5,7 @@ from .modifier import ModifierLinkedList
 
 GAP_CHARS = '.-'
 GAP_PATTERN = re.compile(r'^[.-]+$')
+ANY_GAP_PATTERN = re.compile(r'[.-]')
 
 SEQTYPES = ['NA']  # currently we don't support AA sequence
 
@@ -42,47 +43,47 @@ def enumerate_seq_pos(seq_text):
 
 class PositionalSeqStr:
 
-    def __init__(self, seq_text, seq_pos=None, seq_flag=None):
-        if not seq_text:
-            self._seq_text = ''
-            self._seq_pos = []
-            self._seq_flag = []
-        elif isinstance(seq_text, PositionalSeqStr):
-            self._seq_text = seq_text._seq_text
-            self._seq_pos = seq_text._seq_pos
-            self._seq_flag = seq_text._seq_flag
-        elif isinstance(seq_text, list):
-            if isinstance(seq_text[0], tuple) and len(seq_text[0]) == 3:
-                (self._seq_text,
-                 self._seq_pos,
-                 self._seq_flag) = list(zip(*seq_text))
-            elif isinstance(seq_text[0], PositionalSeqStr):
-                temp = PositionalSeqStr.join(seq_text)
-                self._seq_text = temp._seq_text
-                self._seq_pos = temp._seq_pos
-                self._seq_flag = temp._seq_flag
-            else:
-                raise ValueError('invalid input')
-        elif seq_pos is None and seq_flag is None:
-            # used by utils.cigar
-            self._seq_text = seq_text.upper()
-            self._seq_pos = enumerate_seq_pos(seq_text)
-            self._seq_flag = [set() for _ in self._seq_pos]
-        elif isinstance(seq_pos, int) and isinstance(seq_flag, set):
-            # used by __getitem__
-            self._seq_text = seq_text.upper()
-            self._seq_pos = [seq_pos]
-            self._seq_flag = [seq_flag]
-        elif len(seq_text) == len(seq_pos) == len(seq_flag):
-            self._seq_text = seq_text.upper()
-            self._seq_pos = seq_pos
-            self._seq_flag = seq_flag
+    @classmethod
+    def init_empty(cls):
+        return cls('', [], [])
+
+    @classmethod
+    def init_gaps(cls, gaplen):
+        seq_text = '-' * gaplen
+        seq_pos = [-1] * gaplen
+        seq_flag = [set() for _ in seq_pos]
+        return cls(seq_text, seq_pos, seq_flag)
+
+    @classmethod
+    def init_from_triplets(cls, triplets):
+        (seq_text,
+         seq_pos,
+         seq_flag) = list(zip(*triplets))
+        return cls(seq_text, seq_pos, seq_flag)
+
+    @classmethod
+    def init_from_nastring(cls, seq_text):
+        seq_text = seq_text.upper()
+        seq_pos = enumerate_seq_pos(seq_text)
+        seq_flag = [set() for _ in seq_pos]
+        return cls(seq_text, seq_pos, seq_flag)
+
+    def __init__(self, seq_text, seq_pos, seq_flag):
+        self._seq_text = seq_text
+        self._seq_pos = seq_pos
+        self._seq_flag = seq_flag
+        self._min_pos = None
+        self._max_pos = None
+        if len(seq_text) == 1:
+            self._is_gap = seq_text in GAP_CHARS
+            self.is_single_gap = self._is_gap
         else:
-            raise ValueError('invalid input')
+            self._is_gap = None
+            self.is_single_gap = False
 
     @property
     def min_pos(self):
-        if not hasattr(self, '_min_pos'):
+        if self._min_pos is None:
             self._min_pos = next(
                 (pos for pos in self._seq_pos if pos > 0), None
             )
@@ -90,7 +91,7 @@ class PositionalSeqStr:
 
     @property
     def max_pos(self):
-        if not hasattr(self, '_max_pos'):
+        if self._max_pos is None:
             self._max_pos = next(
                 (pos for pos in reversed(self._seq_pos) if pos > 0), None
             )
@@ -105,7 +106,10 @@ class PositionalSeqStr:
             one.add(flag)
 
     def any_has_flag(self, flag):
-        return any(flag in one for one in self._seq_flag)
+        for one in self._seq_flag:
+            if flag in one:
+                return True
+        return False
 
     def all_have_flag(self, flag):
         return all(flag in one for one in self._seq_flag)
@@ -143,10 +147,16 @@ class PositionalSeqStr:
         return idx_start, idx_end
 
     def __getitem__(self, index):
-        return PositionalSeqStr(
-            self._seq_text[index],
-            self._seq_pos[index],
-            self._seq_flag[index])
+        if isinstance(index, slice):
+            return PositionalSeqStr(
+                self._seq_text[index],
+                self._seq_pos[index],
+                self._seq_flag[index])
+        else:
+            return PositionalSeqStr(
+                self._seq_text[index],
+                [self._seq_pos[index]],
+                [self._seq_flag[index]])
 
     def __setitem__(self, index, value):
         if isinstance(value, PositionalSeqStr):
@@ -180,7 +190,7 @@ class PositionalSeqStr:
         for na, pos, flag in zip(self._seq_text,
                                  self._seq_pos,
                                  self._seq_flag):
-            yield PositionalSeqStr(na, pos, flag)
+            yield PositionalSeqStr(na, [pos], [flag])
 
     def __iadd__(self, other):
         self._seq_text += other._seq_text
@@ -197,7 +207,7 @@ class PositionalSeqStr:
         return self._seq_text.count(*args, **kwargs)
 
     def remove_gaps(self):
-        return PositionalSeqStr([
+        return PositionalSeqStr.init_from_triplets([
             (na, pos, flag)
             for na, pos, flag in zip(self._seq_text,
                                      self._seq_pos,
@@ -206,7 +216,7 @@ class PositionalSeqStr:
         ])
 
     def is_gap(self):
-        if not hasattr(self, '_is_gap'):
+        if self._is_gap is None:
             self._is_gap = bool(
                 self._seq_text and
                 GAP_PATTERN.match(self._seq_text)
@@ -219,6 +229,20 @@ class PositionalSeqStr:
         seq_pos = [pos for one in value for pos in one._seq_pos]
         seq_flag = [flag for one in value for flag in one._seq_flag]
         return cls(seq_text, seq_pos, seq_flag)
+
+    @staticmethod
+    def list_contains_any_gap(nas):
+        for na in nas:
+            if na.is_gap():
+                return True
+        return False
+
+    @staticmethod
+    def list_contains_all_gap(nas):
+        for na in nas:
+            if not na.is_gap():
+                return False
+        return True
 
 
 class Sequence(BaseSequence):
@@ -234,13 +258,18 @@ class Sequence(BaseSequence):
         modifiers_=None,
         skip_invalid=True
     ):
+        if not isinstance(seqtext, PositionalSeqStr):
+            raise ValueError(
+                'seqtext must be an instance of PositionSeqStr'
+            )
         if skip_invalid is not SKIP_VALIDATION:
-            seqtext = PositionalSeqStr(seqtext)
-            testseqtext = str(seqtext).upper()
+            testseqtext = str(seqtext)
             illegal_pattern = ILLEGAL_PATTERNS[seqtype]
             invalids = illegal_pattern.findall(testseqtext)
             if invalids and skip_invalid:
-                seqtext = illegal_pattern.sub('-', testseqtext)
+                seqtext = PositionalSeqStr.init_from_nastring(
+                    illegal_pattern.sub('-', testseqtext)
+                )
             elif invalids:
                 raise ValueError(
                     'sequence {} contains invalid notation(s) ({})'

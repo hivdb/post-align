@@ -86,10 +86,10 @@ def paired_find_best_matches(refnas, seqnas):
         if bp == 1:
             bp1_indices.add(idx)
 
-    if any(na.is_gap() for na in refnas):
+    if PositionalSeqStr.list_contains_any_gap(refnas):
         refnas = find_best_matches(refnas, seqnas, bp1_indices,
                                    scanstart=3, scanstep=3)
-    elif any(na.is_gap() for na in seqnas):
+    if PositionalSeqStr.list_contains_any_gap(seqnas):
         seqnas = find_best_matches(seqnas, refnas, bp1_indices,
                                    scanstart=0, scanstep=1)
     return refnas, seqnas
@@ -102,9 +102,9 @@ SEQGAP = 0b10
 
 def codon_pairs_group_key(cdpair):
     _, (refcd, seqcd) = cdpair
-    if any(na.is_gap() for na in refcd):
+    if PositionalSeqStr.list_contains_any_gap(refcd):
         return REFGAP
-    if any(na.is_gap() for na in seqcd):
+    if PositionalSeqStr.list_contains_any_gap(seqcd):
         return SEQGAP
     return NOGAP
 
@@ -149,7 +149,7 @@ def realign_gaps(refnas, seqnas, window_size):
         win_refnas = list(chain(*win_refcodons))
         win_seqnas = list(chain(*win_seqcodons))
         win_refnas = window_gather_nearby_gaps(win_refnas)
-        if any(na.is_gap() for na in win_refnas):
+        if PositionalSeqStr.list_contains_any_gap(win_refnas):
             # align gaps in seqnas with refnas
             # ref: AAA---CCCTTT     AAA---CCCTTT
             #                    =>
@@ -215,7 +215,7 @@ def move_gaps_to_index(nas, index):
 
 
 def window_gather_nearby_gaps(nas):
-    if any(na.is_gap() for na in nas):
+    if PositionalSeqStr.list_contains_any_gap(nas):
         gapidx = list_index(nas, lambda na: na.is_gap())
         return move_gaps_to_index(nas, gapidx)
     else:

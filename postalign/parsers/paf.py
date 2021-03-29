@@ -1,5 +1,6 @@
 from pafpy import PafRecord, Strand
 
+from ..models.sequence import PositionalSeqStr
 from ..utils.cigar import CIGAR
 
 from . import fasta
@@ -21,12 +22,12 @@ def load(paffp, seqs_prior_alignment, reference, seqtype):
             # alignment for sequence is not found
             yield (
                 refseq.push_seqtext(
-                    '',
+                    PositionalSeqStr.init_empty(),
                     modtext='error()',
                     start_offset=0
                 ),
                 seq.push_seqtext(
-                    '',
+                    PositionalSeqStr.init_empty(),
                     modtext='error()',
                     start_offset=0
                 )
@@ -36,12 +37,12 @@ def load(paffp, seqs_prior_alignment, reference, seqtype):
             # skip reverse strand alignment
             yield (
                 refseq.push_seqtext(
-                    '',
+                    PositionalSeqStr.init_empty(),
                     modtext='error()',
                     start_offset=0
                 ),
                 seq.push_seqtext(
-                    '',
+                    PositionalSeqStr.init_empty(),
                     modtext='error()',
                     start_offset=0
                 )

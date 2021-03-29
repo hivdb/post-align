@@ -1,4 +1,4 @@
-from ..models.sequence import Sequence
+from ..models.sequence import Sequence, PositionalSeqStr
 
 GAP_CHARS = '.-'
 
@@ -22,7 +22,7 @@ def load(fp, seqtype, *, remove_gaps=False):
         return Sequence(
             header=headerdesc[0],
             description=description,
-            seqtext=curseq,
+            seqtext=PositionalSeqStr.init_from_nastring(curseq),
             seqid=seqid,
             seqtype=seqtype,
             abs_seqstart=0,

@@ -1,5 +1,6 @@
 import re
 from more_itertools import chunked
+from ..models.sequence import PositionalSeqStr
 
 CODON_TABLE = {
     'TTT': 'F',
@@ -110,10 +111,12 @@ def expand_ambiguous_na(na):
 
 def translate_codon(nas, fs_as='X', del_as='-'):
     nas = nas[:3]
-    if del_as and len(nas) == 3 and all(na.is_gap() for na in nas):
+    if del_as and len(nas) == 3 and \
+            PositionalSeqStr.list_contains_all_gap(nas):
         # codon is a in-frame deletion
         return del_as
-    if fs_as and (len(nas) < 3 or any(na.is_gap() for na in nas)):
+    if fs_as and (len(nas) < 3 or
+                  PositionalSeqStr.list_contains_any_gap(nas)):
         # codon contains out-frame deletion
         return fs_as
     nas = ''.join(str(na) for na in nas)

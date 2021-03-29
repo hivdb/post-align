@@ -5,7 +5,7 @@ def group_by_codons(refnas, seqnas):
     lastseqcodon = None
     bp = -1
     for refna, seqna in zip(refnas, seqnas):
-        if not refna.is_gap():
+        if not refna.is_single_gap:
             bp = (bp + 1) % 3
             if bp == 0:
                 # begin new codon
