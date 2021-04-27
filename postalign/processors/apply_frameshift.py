@@ -10,14 +10,12 @@ from ..cli import cli
 FS_PATTERN = re.compile(r'^(\d+)([+-]\d+)$')
 
 
-def frameshift_callback(ctx, param, value):
+def parse_frameshift(value):
     frameshift = {}
     for fs in value.split(','):
         match = FS_PATTERN.match(fs)
         if not match:
-            raise click.BadArgumentUsage(
-                'Invalid frameshift format: {!r}'.format(fs), ctx
-            )
+            raise ValueError('Invalid frameshift format: {!r}'.format(fs))
         pos, shift = match.groups()
         pos = int(pos, 10)
         shift = int(shift, 10)
@@ -26,13 +24,20 @@ def frameshift_callback(ctx, param, value):
         if not shift:
             raise click.BadArgumentUsage('N cannot be zero')
         if pos in frameshift:
-            raise click.BadArgumentUsage(
+            raise ValueError(
                 'POS {} is mentioned twice or more'
                 .format(pos))
         frameshift[pos] = shift
     if not frameshift:
-        raise click.BadArgumentUsage('argument FRAMESHIFT is required')
+        raise ValueError('argument FRAMESHIFT is required')
     return sorted(frameshift.items())
+
+
+def frameshift_callback(ctx, param, value):
+    try:
+        return parse_frameshift(value)
+    except ValueError as e:
+        raise click.BadArgumentUsage(str(e), ctx)
 
 
 def apply_frameshift_to_single_seq(refseq, seq, frameshift):
