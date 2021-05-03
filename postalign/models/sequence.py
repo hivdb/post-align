@@ -160,7 +160,9 @@ class PositionalSeqStr:
 
     def __setitem__(self, index, value):
         if isinstance(value, PositionalSeqStr):
-            self._seq_text[index] = value._seq_text
+            seq_bytes = bytearray(self._seq_text, 'U8')
+            seq_bytes[index] = bytearray(value._seq_text, 'U8')
+            self._seq_text = bytes(seq_bytes).decode('U8')
             self._seq_pos[index] = value._seq_pos
             self._seq_flag[index] = value._seq_flag
         elif not value:
@@ -168,7 +170,9 @@ class PositionalSeqStr:
             self._seq_pos[index] = []
             self._seq_flag[index] = []
         elif all(na in GAP_CHARS for na in value):
-            self._seq_text[index] = value
+            seq_bytes = bytearray(self._seq_text, 'U8')
+            seq_bytes[index] = bytearray(value, 'U8')
+            self._seq_text = bytes(seq_bytes).decode('U8')
             self._seq_pos[index] = [-1] * len(value)
             self._seq_flag[index] = [set() for _ in value]
         else:

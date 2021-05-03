@@ -51,14 +51,8 @@ class CIGAR:
                                   PositionalSeqStr.init_gaps(gaplen=num) +
                                   aligned_refseq[offset:])
                 offset += num
-        aligned_seq = (
-            PositionalSeqStr.init_gaps(gaplen=self.ref_start) +
-            aligned_seq[:offset] +
-            PositionalSeqStr.init_gaps(
-                gaplen=len(aligned_refseq) - offset
-            )
-        )
-        aligned_refseq = refseq[:self.ref_start] + aligned_refseq
+        aligned_seq = aligned_seq[:offset]
+        aligned_refseq = aligned_refseq[:offset]
         if len(aligned_refseq) != len(aligned_seq):
             raise ValueError(
                 'Unmatched alignment length: {!r} and {!r}'
