@@ -72,23 +72,23 @@ def load(paffp, seqs_prior_alignment, reference, seqtype):
             # multiple partial alignments; fill the gap with unaligned part
             if prev_seq_start is not None:
                 unaligned_size = min(
-                    prev_seq_start - seq_end + 2,
-                    prev_ref_start - ref_end + 2
+                    prev_seq_start - seq_end + 1,
+                    prev_ref_start - ref_end + 1
                 )
                 final_seqtext[
-                    ref_end - 1:
-                    ref_end - 1 + unaligned_size
+                    ref_end:
+                    ref_end + unaligned_size
                 ] = seqtext[
-                    seq_end - 1:
-                    seq_end - 1 + unaligned_size
+                    seq_end:
+                    seq_end + unaligned_size
                 ]
             prev_ref_start = ref_start
             prev_seq_start = seq_start
 
             cigar_obj = CIGAR(ref_start, seq_start, cigar_text)
             reftext, seqtext = cigar_obj.get_alignment(reftext, seqtext)
-            final_reftext[ref_start:ref_end - 1] = reftext
-            final_seqtext[ref_start:ref_end - 1] = seqtext
+            final_reftext[ref_start:ref_end] = reftext
+            final_seqtext[ref_start:ref_end] = seqtext
         yield (
             refseq.push_seqtext(
                 final_reftext,
