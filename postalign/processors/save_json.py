@@ -11,28 +11,36 @@ from ..utils.codonutils import translate_codon
 from .trim_by_ref import find_trim_slice
 
 
-def group_gene_range_triples(gene_range_triples):
-    if len(gene_range_triples) % 3 != 0:
-        raise click.ClickException(
-            'Missing values in one of the <GENE> <REF_START> <REF_END> triples'
-        )
-    triples = []
-    for gene, refstart, refend in chunked(gene_range_triples, 3):
-        refstart = int(refstart)
-        refend = int(refend)
-        if refstart < 1:
-            raise click.ClickException(
-                'argument <REF_START>:{} must be not less than 1'
-                .format(refstart)
-            )
-        if refend - 2 < refstart:
-            raise click.ClickException(
-                'no enough codon between arguments <REF_START>'
-                ':{} and <REF_END>:{}'
-                .format(refstart, refend)
-            )
-        triples.append((gene, refstart, refend))
-    return triples
+def group_gene_range_tuples(gene_range_tuples):
+    tuples = []
+    # use $$ as the end, it never goes into the results
+    gene_range_tuples = iter(gene_range_tuples + ['$$'])
+    cur_group = []
+    for one in gene_range_tuples:
+        if one.isdigit():
+            cur_group.append(int(one))
+        else:
+            gene, *ranges = cur_group
+            if len(ranges) % 2 != 0:
+                raise click.ClickException(
+                    'Missing paired range values: <GENE>{}'.format(gene)
+                )
+            ranges = tuple(chunked(ranges, 2))
+            for refstart, refend in ranges:
+                if refstart < 1:
+                    raise click.ClickException(
+                        'argument <REF_START>:{} must be not less than 1'
+                        .format(refstart)
+                    )
+                if refend - 2 < refstart:
+                    raise click.ClickException(
+                        'no enough codon between arguments <REF_START>'
+                        ':{} and <REF_END>:{}'
+                        .format(refstart, refend)
+                    )
+            tuples.append((gene, ranges))
+            cur_group = [one]
+    return tuples
 
 
 @cli.command('save-json')
@@ -42,18 +50,19 @@ def group_gene_range_triples(gene_range_triples):
     help='Trim the reports by sequences (not ref sequence) or not'
 )
 @click.argument(
-    'gene_range_triples',
+    'gene_range_tuples',
     nargs=-1
 )
-def save_json(trim_by_seq, gene_range_triples):
+def save_json(trim_by_seq, gene_range_tuples):
     """Save as NucAmino style JSON reports
 
-    <GENE_RANGE_TRIPLES>:
-        Triples of <GENE> <REF_START> <REF_END>.
+    <GENE_RANGE_TUPLES>:
+        2n+1-tuples of
+        <GENE> <REF_START1> <REF_END1> <REF_START2> <REF_END2> ...
         Use to calculate codon position within the protein/gene.
     """
     num_indent = 2
-    gene_range_triples = group_gene_range_triples(gene_range_triples)
+    gene_range_tuples = group_gene_range_tuples(gene_range_tuples)
 
     def processor(iterator):
         # TODO: MSA remap?
@@ -86,9 +95,9 @@ def save_json(trim_by_seq, gene_range_triples):
             }
 
             gene_codons = group_by_gene_codons(
-                reftext, seqtext, gene_range_triples)
+                reftext, seqtext, gene_range_tuples)
 
-            for gene, refcodons, seqcodons, refstart in gene_codons:
+            for gene, refcodons, seqcodons in gene_codons:
                 codonpairs = []
                 aligned_sites = []
                 frameshifts = []
@@ -118,7 +127,7 @@ def save_json(trim_by_seq, gene_range_triples):
                         'InsertedCodonsText': ''.join(
                             str(na) for na in seqcd[3:len(seqcd) - ins_fs_len]
                         ),
-                        'IsInsertion': len(refcd) > 3,
+                        'IsInsertion': len(refcd) > 5,
                         'IsDeletion': codon_text == '---'
                     })
                     aligned_sites.append({
