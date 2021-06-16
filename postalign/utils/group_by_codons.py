@@ -23,11 +23,15 @@ def group_by_gene_codons(refnas, seqnas, gene_range_tuples):
     results = []
 
     for gene, ranges in gene_range_tuples:
+        refcodons = []
+        seqcodons = []
         for refstart, refend in ranges:
             idxstart, idxend = refnas.posrange2indexrange(refstart, refend)
-            refcodons, seqcodons = group_by_codons(
+            partial_refcodons, partial_seqcodons = group_by_codons(
                 refnas[idxstart:idxend],
                 seqnas[idxstart:idxend]
             )
-            results.append((gene, refcodons, seqcodons))
+            refcodons.extend(partial_refcodons)
+            seqcodons.extend(partial_seqcodons)
+        results.append((gene, refcodons, seqcodons))
     return results

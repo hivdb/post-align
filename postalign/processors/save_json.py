@@ -13,32 +13,32 @@ from .trim_by_ref import find_trim_slice
 
 def group_gene_range_tuples(gene_range_tuples):
     tuples = []
-    # use $$ as the end, it never goes into the results
-    gene_range_tuples = iter(gene_range_tuples + ['$$'])
     cur_group = []
-    for one in gene_range_tuples:
+    # use $$ as the end, it never goes into the results
+    for one in gene_range_tuples + ('$$', ):
         if one.isdigit():
             cur_group.append(int(one))
         else:
-            gene, *ranges = cur_group
-            if len(ranges) % 2 != 0:
-                raise click.ClickException(
-                    'Missing paired range values: <GENE>{}'.format(gene)
-                )
-            ranges = tuple(chunked(ranges, 2))
-            for refstart, refend in ranges:
-                if refstart < 1:
+            if cur_group:
+                gene, *ranges = cur_group
+                if len(ranges) % 2 != 0:
                     raise click.ClickException(
-                        'argument <REF_START>:{} must be not less than 1'
-                        .format(refstart)
+                        'Missing paired range values: <GENE>{}'.format(gene)
                     )
-                if refend - 2 < refstart:
-                    raise click.ClickException(
-                        'no enough codon between arguments <REF_START>'
-                        ':{} and <REF_END>:{}'
-                        .format(refstart, refend)
-                    )
-            tuples.append((gene, ranges))
+                ranges = tuple(chunked(ranges, 2))
+                for refstart, refend in ranges:
+                    if refstart < 1:
+                        raise click.ClickException(
+                            'argument <REF_START>:{} must be not less than 1'
+                            .format(refstart)
+                        )
+                    if refend - 2 < refstart:
+                        raise click.ClickException(
+                            'no enough codon between arguments <REF_START>'
+                            ':{} and <REF_END>:{}'
+                            .format(refstart, refend)
+                        )
+                tuples.append((gene, ranges))
             cur_group = [one]
     return tuples
 
