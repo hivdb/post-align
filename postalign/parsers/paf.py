@@ -35,7 +35,7 @@ def load(paffp, seqs_prior_alignment, reference, seqtype):
                 )
             )
             continue
-        if any(paf.strand == Strand.Reverse for paf in pafs):
+        if not pafs or any(paf.strand == Strand.Reverse for paf in pafs):
             # skip reverse strand alignment
             yield (
                 refseq.push_seqtext(
