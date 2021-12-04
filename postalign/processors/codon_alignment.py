@@ -248,10 +248,17 @@ def clean_nalist_pairs(refnas, seqnas):
     ]))
 
 
-def codon_align(refseq, seq, window_size, refstart, refend):
+def codon_align(
+    refseq,
+    seq,
+    window_size,
+    refstart,
+    refend,
+    check_boundary=True
+):
 
     reftext = refseq.seqtext
-    if reftext[0].is_gap() or reftext[-1].is_gap():
+    if check_boundary and (reftext[0].is_gap() or reftext[-1].is_gap()):
         raise click.ClickException(
             'Unable to perform codon-alignment without the alignments '
             'being trimmed properly. Can be solved by pre-processing '
