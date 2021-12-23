@@ -1,25 +1,36 @@
 from collections import defaultdict
-from pafpy import PafRecord, Strand
+from pafpy import PafRecord, Strand  # type: ignore
+from typing import Iterable, TextIO, List, Dict
 
-from ..models.sequence import PositionalSeqStr
+from ..models.sequence import Sequence, PositionalSeqStr, RefSeqPair
 from ..utils.cigar import CIGAR
 
 from . import fasta
 
 
-def load(paffp, seqs_prior_alignment, reference, seqtype):
-    refseq = next(fasta.load(reference, seqtype, remove_gaps=True))
-    seqs = fasta.load(seqs_prior_alignment, seqtype, remove_gaps=True)
+def load(
+    paffp: TextIO,
+    seqs_prior_alignment: TextIO,
+    reference: TextIO,
+    seqtype: str
+) -> Iterable[RefSeqPair]:
+    refseq: Sequence = next(fasta.load(reference, seqtype, remove_gaps=True))
+    seqs: List[Sequence] = fasta.load(
+        seqs_prior_alignment, seqtype, remove_gaps=True)
 
-    paf_iter = (paf.strip() for paf in paffp)
-    paf_iter = (PafRecord.from_str(paf) for paf in paf_iter if paf)
-    paf_lookup = defaultdict(list)
-    for paf in paf_iter:
-        paf_lookup[paf.qname].append(paf)
+    pafstr_iter = (pafstr.strip() for pafstr in paffp)
+    pafrec_iter = (
+        PafRecord.from_str(pafstr)
+        for pafstr in pafstr_iter
+        if pafstr
+    )
+    paf_lookup: Dict[str, List[PafRecord]] = defaultdict(list)
+    for pafrec in pafrec_iter:
+        paf_lookup[pafrec.qname].append(pafrec)
 
     for seq in seqs:
         try:
-            pafs = paf_lookup[seq.header]
+            pafs: List[PafRecord] = paf_lookup[seq.header]
         except KeyError:
             # alignment for sequence is not found
             yield (

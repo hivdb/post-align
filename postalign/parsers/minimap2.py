@@ -3,14 +3,23 @@ from io import StringIO
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired, PIPE
 from tempfile import TemporaryDirectory
+from typing import TextIO, List, Iterable
 
 from . import fasta, paf
+from ..models.sequence import RefSeqPair
 
 DEFAULT_TIMEOUT = 300
 
 
-def load(fastafp, reference, seqtype, *, minimap2_execute=['minimap2']):
-    minimap2_execute = [*minimap2_execute]
+def load(
+    fastafp: TextIO,
+    reference: TextIO,
+    seqtype: str,
+    *,
+    minimap2_execute: List[str] = ['minimap2']
+) -> Iterable[RefSeqPair]:
+    dirname: str
+    minimap2_execute = [*minimap2_execute]  # copy in case of overwriting
     with TemporaryDirectory(prefix='postalign-minimap2-') as dirname:
         tempdir = Path(dirname)
         ref = list(fasta.load(reference, seqtype, remove_gaps=True))[0]

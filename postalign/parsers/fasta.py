@@ -1,14 +1,21 @@
+from typing import TextIO, Iterable, Generator
+
 from ..models.sequence import Sequence, PositionalSeqStr
 
 GAP_CHARS = '.-'
 
 
-def load(fp, seqtype, *, remove_gaps=False):
-    header = None
-    curseq = ''
-    seqid = 0
+def load(
+    fp: TextIO,
+    seqtype: str,
+    *,
+    remove_gaps: bool = False
+) -> Generator[Sequence, None, None]:
+    header: str = ''
+    curseq: str = ''
+    seqid: int = 0
 
-    def make_seq():
+    def make_seq() -> Sequence:
         nonlocal seqid
         seqid += 1
         if remove_gaps:
@@ -42,5 +49,9 @@ def load(fp, seqtype, *, remove_gaps=False):
         yield make_seq()
 
 
-def dump(sequences, fp, seqtype):
+def dump(
+    sequences: Iterable[Sequence],
+    fp: TextIO,
+    seqtype: str
+) -> None:
     pass

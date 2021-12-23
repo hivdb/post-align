@@ -1,5 +1,6 @@
 import re
 from collections import namedtuple
+from typing import Tuple
 
 from .modifier import ModifierLinkedList
 
@@ -435,3 +436,6 @@ class Sequence(BaseSequence):
             return '{} MOD::{}'.format(self.header, self.modifiers)
         else:
             return self.header
+
+
+RefSeqPair = Tuple[Sequence, Sequence]

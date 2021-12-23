@@ -1,15 +1,24 @@
 import click
+from typing import Iterable, List, Any, Callable, Optional
 from itertools import chain, groupby
 
 from ..cli import cli
 from ..utils import group_by_codons
-from ..models.sequence import PositionalSeqStr
+from ..models.sequence import RefSeqPair, PositionalSeqStr
 from ..utils.codonutils import translate_codons
 from ..utils.blosum62 import blosum62_score
 
+from .base import intermediate_processor, Processor
 
-def list_index(listdata, cond, start=0):
+
+def list_index(
+    listdata: List[Any],
+    cond: Callable[[Any], bool],
+    start: int = 0
+) -> int:
+    idx: int
     for idx, n in enumerate(listdata[start:]):
+        # TODO: heave function calls, use inline cython
         if cond(n):
             return start + idx
     raise ValueError(
@@ -18,10 +27,16 @@ def list_index(listdata, cond, start=0):
     )
 
 
-def list_rindex(listdata, cond, start=None):
+def list_rindex(
+    listdata: List[Any],
+    cond: Callable[[Any], bool],
+    start: Optional[int] = None
+) -> int:
     if start is None:
         start = len(listdata)
+    idx: int
     for idx, n in enumerate(listdata[:start][::-1]):
+        # TODO: heave function calls, use inline cython
         if cond(n):
             return start - idx - 1
     raise ValueError(
@@ -30,8 +45,10 @@ def list_rindex(listdata, cond, start=None):
     )
 
 
-def move_gap_to_codon_end(codons):
-    new_codons = []
+def move_gap_to_codon_end(
+    codons: List[List[PositionalSeqStr]]
+) -> List[List[PositionalSeqStr]]:
+    new_codons: List[List[PositionalSeqStr]] = []
     for codon in codons:
         new_codons.append(
             [na for na in codon if not na.is_gap()] +
@@ -40,10 +57,15 @@ def move_gap_to_codon_end(codons):
     return new_codons
 
 
-def calc_match_score(mynas, othernas):
-    myaas = translate_codons(mynas)
-    otheraas = translate_codons(othernas)
-    score = 0
+def calc_match_score(
+    mynas: List[PositionalSeqStr],
+    othernas: List[PositionalSeqStr]
+) -> int:
+    myaa: str
+    otheraa: str
+    myaas: str = translate_codons(mynas)
+    otheraas: str = translate_codons(othernas)
+    score: int = 0
     for myaa, otheraa in zip(myaas, otheraas):
         score += blosum62_score(myaa, otheraa)
     return score
@@ -308,7 +330,11 @@ def codon_align(
 @click.argument(
     'ref_end', type=int, default=-1
 )
-def codon_alignment(window_size, ref_start, ref_end):
+def codon_alignment(
+    window_size: int,
+    ref_start: int,
+    ref_end: int
+) -> Processor[Iterable[RefSeqPair]]:
     """Codon alignment
 
     A blackbox re-implementation of the "codon-align" tool
@@ -327,7 +353,8 @@ def codon_alignment(window_size, ref_start, ref_end):
             .format(ref_start, ref_end)
         )
 
-    def processor(iterator):
+    @intermediate_processor('codon-alignment')
+    def processor(iterator: Iterable[RefSeqPair]) -> Iterable[RefSeqPair]:
         for refseq, seq in iterator:
             my_ref_end = ref_end
             if my_ref_end <= 0:
@@ -347,6 +374,4 @@ def codon_alignment(window_size, ref_start, ref_end):
                     ref_start, my_ref_end
                 )
 
-    processor.command_name = 'codon-alignment'
-    processor.is_output_command = False
     return processor

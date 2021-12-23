@@ -1,19 +1,33 @@
 import click
+from typing import (
+    Union,
+    TextIO,
+    Optional,
+    Iterable,
+    List
+)
 
+from .processors import Processor
 from .parsers import msa, paf, fasta, minimap2
+from .models.sequence import RefSeqPair, Sequence
 
 
 INPUT_FORMAT = ['MSA', 'PAF', 'MINIMAP2']
 
 
-def reference_callback(ctx, param, value):
+def reference_callback(
+    ctx: click.Context,
+    param: str,
+    value: str
+) -> Union[TextIO, str]:
     """Pre-process -r/--reference input"""
-    alignment_format = ctx.params['alignment_format']
+    retvalue: Union[TextIO, str]
+    alignment_format: str = ctx.params['alignment_format']
     try:
-        value = open(value)
+        retvalue = open(value)
         if alignment_format == 'MSA':
-            ref = next(fasta.load(value, seqtype='NA'))
-            value = ref.header
+            ref: Sequence = next(fasta.load(retvalue, seqtype='NA'))
+            retvalue = ref.header
     except (KeyboardInterrupt, SystemExit):
         raise
     except Exception:
@@ -25,12 +39,16 @@ def reference_callback(ctx, param, value):
                 .format(alignment_format),
                 ctx
             )
-    return value
+    return retvalue
 
 
-def seqs_prior_alignment_callback(ctx, param, value):
+def seqs_prior_alignment_callback(
+    ctx: click.Context,
+    param: str,
+    value: Optional[TextIO]
+) -> Optional[TextIO]:
     """Pre-process -p/--seqs-prior-alignment input"""
-    alignment_format = ctx.params['alignment_format']
+    alignment_format: str = ctx.params['alignment_format']
     if alignment_format in ('PAF', ):
         if not value:
             raise click.BadOptionUsage(
@@ -44,7 +62,7 @@ def seqs_prior_alignment_callback(ctx, param, value):
             'Warning: ignore -p/--seqs-prior-alignment for '
             'alignment format {!r}'
             .format(alignment_format), err=True)
-        return
+    return None
 
 
 @click.group(chain=True, invoke_without_command=True)
@@ -72,7 +90,7 @@ def seqs_prior_alignment_callback(ctx, param, value):
     help='Input/output alignment file format')
 @click.option(
     '-r', '--reference',
-    type=str,
+    type=str, required=True,
     callback=reference_callback,
     help=(
         'Header/FASTA file of the reference sequence. Will '
@@ -93,55 +111,73 @@ def seqs_prior_alignment_callback(ctx, param, value):
     default=False,
     help='Enable cProfile')
 def cli(
-    input_alignment,
-    seqs_prior_alignment,
-    output,
-    alignment_format,
-    reference,
-    nucleotides,
-    verbose,
-    enable_profile
-):
+    input_alignment: TextIO,
+    seqs_prior_alignment: Optional[TextIO],
+    output: TextIO,
+    alignment_format: str,
+    reference: Union[TextIO, str],
+    nucleotides: bool,
+    verbose: bool,
+    enable_profile: bool
+) -> None:
     pass
 
 
-def call_processors(processors, iterator):
-    for processor in processors:
+def call_processors(
+    processors: List[Processor],
+    iterator: Iterable[RefSeqPair]
+) -> Iterable[str]:
+    processor: Processor[Iterable[RefSeqPair]]
+    for processor in processors[:-1]:
         iterator = processor(iterator)
-    yield from iterator
+    last_processor: Processor[Iterable[str]] = processors[-1]
+    return last_processor(iterator)
 
 
-@cli.resultcallback()
-def process_pipeline(
-    processors,
-    input_alignment,
-    seqs_prior_alignment,
-    output,
-    alignment_format,
-    reference,
-    nucleotides,
-    verbose,
-    enable_profile
-):
-    # TODO: verify if processors is ended with an output method
+def check_processors(processors: List[Processor]) -> None:
     if not processors:
         raise click.ClickException('No processor is specified')
-    last_processor = processors[-1]
-    if (
-        not hasattr(last_processor, 'is_output_command') or
-        not last_processor.is_output_command
-    ):
+    last_processor: Processor = processors[-1]
+    if not last_processor.is_output_command:
         raise click.ClickException(
             'The last pipeline command {!r} is not an output method'
             .format(last_processor.command_name)
         )
+    extra_output_commands: List[str] = []
+    for processor in processors[:-1]:
+        if processor.is_output_command:
+            extra_output_commands.append(processor.command_name)
+    if extra_output_commands:
+        raise click.ClickException(
+            'Following pipeline command(s) are output methods: {}'
+            .format(', '.join(extra_output_commands))
+        )
+
+
+@cli.resultcallback()
+def process_pipeline(
+    processors: List[Processor],
+    input_alignment: TextIO,
+    seqs_prior_alignment: Optional[TextIO],
+    output: TextIO,
+    alignment_format: str,
+    reference: Union[TextIO, str],
+    nucleotides: bool,
+    verbose: bool,
+    enable_profile: bool
+) -> None:
+    seqtype: str = 'NA'
+    iterator: Iterable[RefSeqPair]
+    check_processors(processors)
+
     if not nucleotides:
         raise click.ClickException(
             'Amino acid sequences is not yet supported (--amino-acids)'
         )
-    seqtype = 'NA'
-    if alignment_format == 'MSA':
-        iterator = msa.load(input_alignment, reference, seqtype)
+
+    if isinstance(reference, str):
+        if alignment_format == 'MSA':
+            iterator = msa.load(input_alignment, reference, seqtype)
     elif alignment_format == 'PAF':
         iterator = paf.load(input_alignment, seqs_prior_alignment,
                             reference, seqtype)
@@ -151,6 +187,7 @@ def process_pipeline(
         raise click.ClickException(
             'Unsupport alignment format: {}'.format(alignment_format)
         )
+
     if enable_profile:
         import cProfile
         import pstats

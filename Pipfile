@@ -7,11 +7,13 @@ verify_ssl = true
 ipython = "*"
 pyinstaller = ">=4.2"
 post-align = {editable = true, path = "."}
+mypy = "*"
 
 [packages]
 click = "*"
 more-itertools = "*"
 pafpy = "*"
+types-setuptools = "*"
 
 [requires]
-python_version = "3.8"
+python_version = "3.9"
