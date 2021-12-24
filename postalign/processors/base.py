@@ -2,7 +2,7 @@ from typing import Callable, Iterable, Generic, TypeVar
 from ..models.sequence import RefSeqPair
 
 
-ReturnType = TypeVar('ReturnType')
+ReturnType = TypeVar('ReturnType', Iterable[RefSeqPair], Iterable[str])
 
 
 class Processor(Generic[ReturnType]):

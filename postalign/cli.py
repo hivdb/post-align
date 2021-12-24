@@ -178,7 +178,7 @@ def process_pipeline(
     if isinstance(reference, str):
         if alignment_format == 'MSA':
             iterator = msa.load(input_alignment, reference, seqtype)
-    elif alignment_format == 'PAF':
+    elif alignment_format == 'PAF' and seqs_prior_alignment:
         iterator = paf.load(input_alignment, seqs_prior_alignment,
                             reference, seqtype)
     elif alignment_format == 'MINIMAP2':

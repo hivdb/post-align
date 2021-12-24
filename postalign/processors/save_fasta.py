@@ -1,6 +1,10 @@
 import click
+from typing import Iterable
 
 from ..cli import cli
+from ..models import RefSeqPair, Sequence
+
+from .base import output_processor, Processor
 
 
 @cli.command('save-fasta')
@@ -20,11 +24,19 @@ from ..cli import cli
     '--pairwise/--msa',
     default=False,
     help='Save alignments in pairwise or MSA form')
-def save_fasta(preserve_order, modifiers, pairwise):
+def save_fasta(
+    preserve_order: bool,
+    modifiers: bool,
+    pairwise: bool
+) -> Processor[Iterable[str]]:
     """Save prior post-alignment results as a FASTA file"""
 
-    def processor(iterator):
+    @output_processor('save-fasta')
+    def processor(iterator: Iterable[RefSeqPair]) -> Iterable[str]:
         # TODO: MSA remap?
+        idx: int
+        refseq: Sequence
+        seq: Sequence
         for idx, (refseq, seq) in enumerate(iterator):
             if (
                 pairwise or
@@ -43,6 +55,4 @@ def save_fasta(preserve_order, modifiers, pairwise):
                 yield '>{}\n'.format(seq.header)
             yield '{}\n'.format(seq.seqtext)
 
-    processor.command_name = 'save-fasta'
-    processor.is_output_command = True
     return processor
