@@ -1,8 +1,8 @@
 from typing import TextIO, Iterable, Generator
 
-from ..models.sequence import Sequence, PositionalSeqStr
+from ..models import Sequence, NAPosition
 
-GAP_CHARS = '.-'
+GAP_CHARS = b'.-'
 
 
 def load(
@@ -12,7 +12,7 @@ def load(
     remove_gaps: bool = False
 ) -> Generator[Sequence, None, None]:
     header: str = ''
-    curseq: str = ''
+    curseq: bytearray = bytearray()
     seqid: int = 0
 
     def make_seq() -> Sequence:
@@ -20,7 +20,7 @@ def load(
         seqid += 1
         if remove_gaps:
             for gap in GAP_CHARS:
-                curseq.replace(gap, '')
+                curseq.replace(bytes(gap), b'')
 
         headerdesc = header.split(' ', 1)
         description = ''
@@ -29,7 +29,7 @@ def load(
         return Sequence(
             header=headerdesc[0],
             description=description,
-            seqtext=PositionalSeqStr.init_from_nastring(curseq),
+            seqtext=NAPosition.init_from_nastring(curseq),
             seqid=seqid,
             seqtype=seqtype,
             abs_seqstart=0,
@@ -40,11 +40,11 @@ def load(
             if header and curseq:
                 yield make_seq()
             header = line[1:].strip()
-            curseq = ''
+            curseq = bytearray()
         elif line.startswith('#'):
             continue
         else:
-            curseq += line.strip()
+            curseq.extend(bytes(line.strip(), 'ASCII', 'ignore'))
     if header and curseq:
         yield make_seq()
 

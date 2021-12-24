@@ -1,31 +1,26 @@
 import re
-from itertools import groupby
-from ..models.sequence import PositionalSeqStr
+from typing import TypeVar, List, Tuple
+
+from ..models import Position
 
 CIGAR_PATTERN = re.compile(r'(\d+)([MNDI])')
 
-
-def get_cigar(ref, query):
-    cigar = []
-    for r, q in zip(ref, query):
-        if r == q == '-':
-            continue
-        if r == '-':
-            cigar.append(('I', 1))
-        elif q == '-':
-            cigar.append(('D', 1))
-        else:
-            cigar.append(('M', 1))
-    compressed = []
-    for type, counts in groupby(cigar, lambda c: c[0]):
-        total = sum(c for _, c in counts)
-        compressed.append('{}{}'.format(total, type))
-    return ''.join(compressed)
+T = TypeVar('T', bound='CIGAR')
 
 
 class CIGAR:
 
-    def __init__(self, ref_start, seq_start, cigar_string):
+    ref_start: int
+    seq_start: int
+    cigar_string: str
+    cigar_tuple: List[Tuple[int, str]]
+
+    def __init__(
+        self: T,
+        ref_start: int,
+        seq_start: int,
+        cigar_string: str
+    ) -> None:
         self.ref_start = ref_start
         self.seq_start = seq_start
         self.cigar_string = cigar_string
@@ -34,22 +29,30 @@ class CIGAR:
             for num, op in CIGAR_PATTERN.findall(cigar_string)
         ]
 
-    def get_alignment(self, refseq, seq):
-        aligned_refseq = refseq[self.ref_start:]
-        aligned_seq = seq[self.seq_start:]
-        offset = 0
+    def get_alignment(
+        self: T,
+        refseq: Position,
+        seq: Position
+    ) -> Tuple[Position, Position]:
+        num: int
+        op: str
+        aligned_refseq: Position = refseq[self.ref_start:]
+        aligned_seq: Position = seq[self.seq_start:]
+        offset: int = 0
         for num, op in self.cigar_tuple:
             if op == 'M':
                 offset += num
             elif op in ('D', 'N'):
-                aligned_seq = (aligned_seq[:offset] +
-                               PositionalSeqStr.init_gaps(gaplen=num) +
-                               aligned_seq[offset:])
+                aligned_seq = (
+                    aligned_seq[:offset] +
+                    type(aligned_seq).init_gaps(gaplen=num) +
+                    aligned_seq[offset:])
                 offset += num
             elif op == 'I':
-                aligned_refseq = (aligned_refseq[:offset] +
-                                  PositionalSeqStr.init_gaps(gaplen=num) +
-                                  aligned_refseq[offset:])
+                aligned_refseq = (
+                    aligned_refseq[:offset] +
+                    type(aligned_refseq).init_gaps(gaplen=num) +
+                    aligned_refseq[offset:])
                 offset += num
         aligned_seq = aligned_seq[:offset]
         aligned_refseq = aligned_refseq[:offset]
@@ -60,7 +63,7 @@ class CIGAR:
             )
         return aligned_refseq, aligned_seq
 
-    def __repr__(self):
+    def __repr__(self: T) -> str:
         return ('<CIGAR {!r} ref_start={!r} seq_start={!r}>'
                 .format(self.cigar_string,
                         self.ref_start,

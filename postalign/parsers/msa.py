@@ -1,11 +1,19 @@
 import click
+from typing import TextIO, Generator, Iterable
 from itertools import tee
+
+from ..models import RefSeqPair, Sequence
 
 from . import fasta
 
 
-def load(msafp, reference, seqtype):
-    sequences = fasta.load(msafp, seqtype)
+def load(
+    msafp: TextIO,
+    reference: str,
+    seqtype: str
+) -> Generator[RefSeqPair, None, None]:
+    ref_finder: Iterable[Sequence]
+    sequences: Iterable[Sequence] = fasta.load(msafp, seqtype)
     ref_finder, sequences = tee(sequences, 2)
 
     if reference:

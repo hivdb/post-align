@@ -2,7 +2,7 @@ from collections import defaultdict
 from pafpy import PafRecord, Strand  # type: ignore
 from typing import Iterable, TextIO, List, Dict
 
-from ..models.sequence import Sequence, PositionalSeqStr, RefSeqPair
+from ..models import Sequence, NAPosition, RefSeqPair
 from ..utils.cigar import CIGAR
 
 from . import fasta
@@ -15,7 +15,7 @@ def load(
     seqtype: str
 ) -> Iterable[RefSeqPair]:
     refseq: Sequence = next(fasta.load(reference, seqtype, remove_gaps=True))
-    seqs: List[Sequence] = fasta.load(
+    seqs: Iterable[Sequence] = fasta.load(
         seqs_prior_alignment, seqtype, remove_gaps=True)
 
     pafstr_iter = (pafstr.strip() for pafstr in paffp)
@@ -35,12 +35,12 @@ def load(
             # alignment for sequence is not found
             yield (
                 refseq.push_seqtext(
-                    PositionalSeqStr.init_empty(),
+                    NAPosition.init_empty(),
                     modtext='error()',
                     start_offset=0
                 ),
                 seq.push_seqtext(
-                    PositionalSeqStr.init_empty(),
+                    NAPosition.init_empty(),
                     modtext='error()',
                     start_offset=0
                 )
@@ -50,19 +50,19 @@ def load(
             # skip reverse strand alignment
             yield (
                 refseq.push_seqtext(
-                    PositionalSeqStr.init_empty(),
+                    NAPosition.init_empty(),
                     modtext='error()',
                     start_offset=0
                 ),
                 seq.push_seqtext(
-                    PositionalSeqStr.init_empty(),
+                    NAPosition.init_empty(),
                     modtext='error()',
                     start_offset=0
                 )
             )
             continue
         final_reftext = refseq.seqtext[:]
-        final_seqtext = PositionalSeqStr.init_gaps(len(final_reftext))
+        final_seqtext = NAPosition.init_gaps(len(final_reftext))
         prev_ref_start = None
         prev_seq_start = None
         ref_paf_params = []
