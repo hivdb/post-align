@@ -303,3 +303,6 @@ class NAPosition:
             if not na.is_gap():
                 return False
         return True
+
+
+NAPosOrList = TypeVar('NAPosOrList', NAPosition, List[NAPosition])

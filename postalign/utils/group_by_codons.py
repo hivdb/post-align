@@ -1,10 +1,10 @@
 from typing import Optional, Tuple, List
-from ..models import NAPosition
+from ..models import NAPosOrList, NAPosition
 
 
 def group_by_codons(
-    refnas: NAPosition,
-    seqnas: NAPosition
+    refnas: NAPosOrList,
+    seqnas: NAPosOrList
 ) -> Tuple[
     List[List[NAPosition]],
     List[List[NAPosition]]
