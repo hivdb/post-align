@@ -27,7 +27,6 @@ ILLEGAL_PATTERNS = {
     'NA': re.compile(r'[^ACGTUWSMKRYBDHVN.-]')
 }
 
-T = TypeVar('T', bound='Sequence')
 Position = TypeVar('Position', NAPosition, AAPosition)
 
 
@@ -41,7 +40,7 @@ class Sequence(Generic[Position]):
     modifiers_: Optional[ModifierLinkedList]
 
     def __init__(
-        self: T, *,
+        self: 'Sequence', *,
         header: str,
         description: str,
         seqtext: Position,
@@ -73,7 +72,7 @@ class Sequence(Generic[Position]):
                     .format(header, ''.join(set(invalids)))
                 )
         self.header = header
-        self.descrption = description
+        self.description = description
         self.seqtext = seqtext
         self.seqid = seqid
         self.seqtype = seqtype
@@ -81,20 +80,23 @@ class Sequence(Generic[Position]):
         self.modifiers_ = modifiers_
 
     @property
-    def headerdesc(self: T) -> str:
+    def headerdesc(self: 'Sequence') -> str:
         hd: str = self.header
         if self.description:
             hd += ' ' + self.description
         return hd
 
     @property
-    def modifiers(self: T) -> ModifierLinkedList:
+    def modifiers(self: 'Sequence') -> ModifierLinkedList:
         if self.modifiers_ is None:
             return ModifierLinkedList()
         else:
             return self.modifiers_
 
-    def __getitem__(self: T, index: Union[int, slice]) -> Union[Position, T]:
+    def __getitem__(
+        self: 'Sequence',
+        index: Union[int, slice]
+    ) -> Union[Position, 'Sequence']:
         seqtext: Position = self.seqtext[index]
         if isinstance(index, slice):
             start: int
@@ -158,7 +160,7 @@ class Sequence(Generic[Position]):
                 skip_invalid=SKIP_VALIDATION)
         return seqtext
 
-    def __add__(self: T, other: T) -> T:
+    def __add__(self: 'Sequence', other: 'Sequence') -> 'Sequence':
         if not isinstance(other, Sequence):
             raise TypeError(
                 'unsupported operand type(s) for +: {!r} and {!r}'
@@ -180,19 +182,19 @@ class Sequence(Generic[Position]):
             abs_seqstart=self.abs_seqstart,
             skip_invalid=SKIP_VALIDATION)
 
-    def __iter__(self: T) -> Generator[Position, None, None]:
+    def __iter__(self: 'Sequence') -> Generator[Position, None, None]:
         yield from self.seqtext
 
-    def __len__(self: T) -> int:
+    def __len__(self: 'Sequence') -> int:
         return len(self.seqtext)
 
     def push_seqtext(
-        self: T,
+        self: 'Sequence',
         seqtext: Position,
         modtext: str,
         start_offset: int,
         **kw: Any
-    ) -> T:
+    ) -> 'Sequence':
         """Modify seqtext and push modifier forward
 
         The difference between `push_seqtext` and `replace_seqtext` is similar
@@ -213,12 +215,12 @@ class Sequence(Generic[Position]):
             skip_invalid=True)
 
     def replace_seqtext(
-        self: T,
+        self: 'Sequence',
         seqtext: Position,
         modtext: str,
         start_offset: int,
         **kw: Any
-    ) -> T:
+    ) -> 'Sequence':
         """Modify seqtext and replace last modifier
 
         The difference between `push_seqtext` and `replace_seqtext` is similar
@@ -240,7 +242,7 @@ class Sequence(Generic[Position]):
             skip_invalid=True)
 
     @property
-    def header_with_modifiers(self: T) -> str:
+    def header_with_modifiers(self: 'Sequence') -> str:
         modtext: str = str(self.modifiers)
         if modtext:
             return '{} MOD::{}'.format(self.header, self.modifiers)

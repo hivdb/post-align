@@ -9,9 +9,9 @@ from ..cli import cli
 from ..utils import group_by_gene_codons
 from ..utils.codonutils import translate_codon
 from ..models import RefSeqPair, NAPosition, Sequence
+from ..processor import Processor, output_processor
 
 from .trim_by_ref import find_trim_slice
-from .base import Processor, output_processor
 
 
 def gene_range_tuples_callback(
@@ -195,22 +195,19 @@ def save_json(
                     else:
                         ins_fs_len = nalen % 3
                         del_fs_len = 0
-                    # XXX add function to join List[NAPosition]
-                    codon_text: str = ''.join(
-                        str(bytes(na), 'ASCII') for na in seqcd[:3])
+                    codon_text: str = NAPosition.join_for_str(seqcd[:3])
                     if any(na.any_has_flag('trim_by_seq') for na in seqcd[:3]):
                         continue
                     codonpairs.append({
                         'Position': pos0 + 1,
-                        'RefCodonText': ''.join(str(na) for na in refcd[:3]),
+                        'RefCodonText': NAPosition.join_for_str(refcd[:3]),
                         'CodonText': codon_text,
                         'RefAminoAcidText': str(
                             translate_codon(refcd[:3]), 'ASCII'),
                         'AminoAcidText': str(
                             translate_codon(seqcd[:3]), 'ASCII'),
-                        'InsertedCodonsText': ''.join(
-                            str(bytes(na), 'ASCII')
-                            for na in seqcd[3:len(seqcd) - ins_fs_len]
+                        'InsertedCodonsText': NAPosition.join_for_str(
+                            seqcd[3:len(seqcd) - ins_fs_len]
                         ),
                         'IsInsertion': len(refcd) > 5,
                         'IsDeletion': codon_text == '---'
@@ -224,10 +221,8 @@ def save_json(
                         frameshifts.append({
                             'Position': pos0 + 1,
                             'GapLength': ins_fs_len,
-                            'NucleicAcidsText': ''.join(
-                                str(bytes(na), 'ASCII')
-                                for na in seqcd[-ins_fs_len:]
-                            ),
+                            'NucleicAcidsText':
+                            NAPosition.join_for_str(seqcd[-ins_fs_len:]),
                             'IsInsertion': True
                         })
                     elif del_fs_len:

@@ -9,7 +9,7 @@ from ..models import Sequence, RefSeqPair, NAPosition, NAPosOrList
 from ..utils.codonutils import translate_codons
 from ..utils.blosum62 import blosum62_score
 
-from .base import intermediate_processor, Processor
+from ..processor import intermediate_processor, Processor
 
 
 NOGAP: int = 0b00

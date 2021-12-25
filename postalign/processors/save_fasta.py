@@ -4,7 +4,7 @@ from typing import Iterable
 from ..cli import cli
 from ..models import RefSeqPair, Sequence
 
-from .base import output_processor, Processor
+from ..processor import output_processor, Processor
 
 
 @cli.command('save-fasta')

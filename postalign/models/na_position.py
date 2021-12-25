@@ -7,6 +7,7 @@ from typing import (
     Union,
     Iterable,
     Generator,
+    ByteString,
     Type,
     TypeVar
 )
@@ -27,17 +28,14 @@ def enumerate_seq_pos(seq_text: bytes) -> List[int]:
     return seq_pos
 
 
-T = TypeVar('T', bound='NAPosition')
-
-
 class NAPosition:
 
     @classmethod
-    def init_empty(cls: Type[T]) -> T:
+    def init_empty(cls: Type['NAPosition']) -> 'NAPosition':
         return cls(b'', [], [])
 
     @classmethod
-    def init_gaps(cls: Type[T], gaplen: int) -> T:
+    def init_gaps(cls: Type['NAPosition'], gaplen: int) -> 'NAPosition':
         seq_text: bytes = b'-' * gaplen
         seq_pos: List[int] = [-1] * gaplen
         seq_flag: List[Set[str]] = [set() for _ in seq_pos]
@@ -45,9 +43,9 @@ class NAPosition:
 
     @classmethod
     def init_from_triplets(
-        cls: Type[T],
+        cls: Type['NAPosition'],
         triplets: List[Tuple[int, int, Set[str]]]
-    ) -> T:
+    ) -> 'NAPosition':
         seq_text: bytearray = bytearray()
         seq_pos: List[int] = []
         seq_flag: List[Set[str]] = []
@@ -55,11 +53,14 @@ class NAPosition:
             seq_text.append(na)
             seq_pos.append(pos)
             seq_flag.append(flag)
-        return cls(seq_text, seq_pos, seq_flag)
+        return cls(bytes(seq_text), seq_pos, seq_flag)
 
     @classmethod
-    def init_from_nastring(cls: Type[T], seq_text: bytes) -> T:
-        seq_text = seq_text.upper()
+    def init_from_nastring(
+        cls: Type['NAPosition'],
+        seq_text: ByteString
+    ) -> 'NAPosition':
+        seq_text = bytes(seq_text).upper()
         seq_pos: List[int] = enumerate_seq_pos(seq_text)
         seq_flag: List[Set[str]] = [set() for _ in seq_pos]
         return cls(seq_text, seq_pos, seq_flag)
@@ -73,7 +74,7 @@ class NAPosition:
     _is_single_gap: Optional[bool]
 
     def __init__(
-        self: T,
+        self: 'NAPosition',
         seq_text: bytes,
         seq_pos: List[int],
         seq_flag: List[Set[str]]
@@ -91,7 +92,7 @@ class NAPosition:
             self.is_single_gap = False
 
     @property
-    def min_pos(self: T) -> Optional[int]:
+    def min_pos(self: 'NAPosition') -> Optional[int]:
         if self._min_pos is None:
             self._min_pos = next(
                 (pos for pos in self._seq_pos if pos > 0), None
@@ -99,7 +100,7 @@ class NAPosition:
         return self._min_pos
 
     @property
-    def max_pos(self: T) -> Optional[int]:
+    def max_pos(self: 'NAPosition') -> Optional[int]:
         if self._max_pos is None:
             self._max_pos = next(
                 (pos for pos in reversed(self._seq_pos) if pos > 0), None
@@ -107,17 +108,17 @@ class NAPosition:
         return self._max_pos
 
     @property
-    def empty(self: T) -> bool:
+    def empty(self: 'NAPosition') -> bool:
         return self.min_pos is None
 
     @cython.ccall
-    def set_flag(self: T, flag: str) -> None:
+    def set_flag(self: 'NAPosition', flag: str) -> None:
         one: Set[str]
         for one in self._seq_flag:
             one.add(flag)
 
     @cython.ccall
-    def any_has_flag(self: T, flag: str) -> bool:
+    def any_has_flag(self: 'NAPosition', flag: str) -> bool:
         one: Set[str]
         for one in self._seq_flag:
             if flag in one:
@@ -125,12 +126,12 @@ class NAPosition:
         return False
 
     @cython.ccall
-    def all_have_flag(self: T, flag: str) -> bool:
+    def all_have_flag(self: 'NAPosition', flag: str) -> bool:
         one: Set[str]
         return all(flag in one for one in self._seq_flag)
 
     @cython.ccall
-    def pos2index(self: T, pos: int, first: str) -> int:
+    def pos2index(self: 'NAPosition', pos: int, first: str) -> int:
         if first == 'first':
             return self._seq_pos.index(pos)
         elif first == 'last':
@@ -140,7 +141,7 @@ class NAPosition:
 
     @cython.ccall
     def posrange2indexrange(
-        self: T,
+        self: 'NAPosition',
         pos_start: int,
         pos_end: int
     ) -> Tuple[int, int]:
@@ -169,7 +170,10 @@ class NAPosition:
                     continue
         return idx_start, idx_end
 
-    def __getitem__(self: T, index: Union[int, slice]) -> T:
+    def __getitem__(
+        self: 'NAPosition',
+        index: Union[int, slice]
+    ) -> 'NAPosition':
         mytype = type(self)
         if isinstance(index, slice):
             return mytype(
@@ -183,9 +187,9 @@ class NAPosition:
                 [self._seq_flag[index]])
 
     def __setitem__(
-        self: T,
+        self: 'NAPosition',
         index: Union[int, slice],
-        value: Union[T, bytes, None]
+        value: Union['NAPosition', bytes, None]
     ) -> None:
         if isinstance(index, int):
             index = slice(index, index + 1 or None)
@@ -211,40 +215,39 @@ class NAPosition:
         else:
             raise ValueError('invalid input')
 
-    def __len__(self: T) -> int:
+    def __len__(self: 'NAPosition') -> int:
         return len(self._seq_text)
 
-    def __contains__(self: T, value: bytes) -> bool:
+    def __contains__(self: 'NAPosition', value: bytes) -> bool:
         return value in self._seq_text
 
-    def __str__(self: T) -> str:
+    def __str__(self: 'NAPosition') -> str:
         raise NotImplementedError(
             'str() for NAPosition is deliberately not supported, '
             'use bytes() instead'
         )
 
-    def __bytes__(self: T) -> bytes:
+    def __bytes__(self: 'NAPosition') -> bytes:
         return self._seq_text
 
-    def __repr__(self: T) -> str:
+    def __repr__(self: 'NAPosition') -> str:
         return 'NAPosition({!r})'.format(self._seq_text)
 
-    def __iter__(self: T) -> Generator[T, None, None]:
+    def __iter__(self: 'NAPosition') -> Generator['NAPosition', None, None]:
         na: int
         pos: int
         flag: Set[str]
-        mytype = type(self)
         for na, pos, flag in zip(self._seq_text,
                                  self._seq_pos,
                                  self._seq_flag):
-            yield mytype(bytes(na), [pos], [flag])
+            yield NAPosition(bytes([na]), [pos], [flag])
 
-    def __iadd__(self: T, other: T) -> None:
+    def __iadd__(self: 'NAPosition', other: 'NAPosition') -> None:
         self._seq_text += other._seq_text
         self._seq_pos += other._seq_pos
         self._seq_flag += other._seq_flag
 
-    def __add__(self: T, other: T) -> T:
+    def __add__(self: 'NAPosition', other: 'NAPosition') -> 'NAPosition':
         seq_text = self._seq_text + other._seq_text
         seq_pos = self._seq_pos + other._seq_pos
         seq_flag = self._seq_flag + other._seq_flag
@@ -252,7 +255,7 @@ class NAPosition:
 
     @cython.ccall
     def count(
-        self: T,
+        self: 'NAPosition',
         sub: Union[int, bytes],
         start: Optional[int] = None,
         end: Optional[int] = None
@@ -260,7 +263,7 @@ class NAPosition:
         return self._seq_text.count(sub, start, end)
 
     @cython.ccall
-    def remove_gaps(self: T) -> T:
+    def remove_gaps(self: 'NAPosition') -> 'NAPosition':
         return type(self).init_from_triplets([
             (na, pos, flag)
             for na, pos, flag in zip(self._seq_text,
@@ -270,7 +273,7 @@ class NAPosition:
         ])
 
     @cython.ccall
-    def is_gap(self: T) -> bool:
+    def is_gap(self: 'NAPosition') -> bool:
         if self._is_gap is None:
             self._is_gap = False
             if self._seq_text:
@@ -282,7 +285,10 @@ class NAPosition:
         return self._is_gap
 
     @classmethod
-    def join(cls: Type[T], value: Iterable[T]) -> T:
+    def join(
+        cls: Type['NAPosition'],
+        value: Iterable['NAPosition']
+    ) -> 'NAPosition':
         seq_text: bytes = b''.join([one._seq_text for one in value])
         seq_pos: List[int] = [pos for one in value for pos in one._seq_pos]
         seq_flag: List[Set[str]] = [
@@ -290,15 +296,23 @@ class NAPosition:
         ]
         return cls(seq_text, seq_pos, seq_flag)
 
+    @classmethod
+    def join_for_str(
+        cls: Type['NAPosition'],
+        value: Iterable['NAPosition']
+    ) -> str:
+        seq_text: bytes = b''.join([one._seq_text for one in value])
+        return seq_text.decode('ASCII')
+
     @staticmethod
-    def list_contains_any_gap(nas: Iterable[T]) -> bool:
+    def list_contains_any_gap(nas: Iterable['NAPosition']) -> bool:
         for na in nas:
             if na.is_gap():
                 return True
         return False
 
     @staticmethod
-    def list_contains_all_gap(nas: Iterable[T]) -> bool:
+    def list_contains_all_gap(nas: Iterable['NAPosition']) -> bool:
         for na in nas:
             if not na.is_gap():
                 return False

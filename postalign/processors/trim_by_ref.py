@@ -4,7 +4,7 @@ from typing import Iterable, Optional
 from ..cli import cli
 from ..models import Sequence, RefSeqPair
 
-from .base import Processor, intermediate_processor
+from ..processor import Processor, intermediate_processor
 
 LEFT_TRIM_PATTERN: re.Pattern = re.compile(r'^[.-]+')
 RIGHT_TRIM_PATTERN: re.Pattern = re.compile(r'[.-]+$')

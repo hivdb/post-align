@@ -25,11 +25,17 @@ def load(
         ref = list(fasta.load(reference, seqtype, remove_gaps=True))[0]
         refpath = tempdir / 'target.fa'
         with refpath.open('w') as fp:
-            fp.write('>{}\n{}'.format(ref.headerdesc, ref.seqtext))
+            fp.write('>{}\n{}'.format(
+                ref.headerdesc,
+                bytes(ref.seqtext).decode('ASCII')
+            ))
         seqpath = tempdir / 'query.fa'
         with seqpath.open('w') as fp:
             for seq in fasta.load(fastafp, seqtype, remove_gaps=True):
-                fp.write('>{}\n{}\n'.format(seq.headerdesc, seq.seqtext))
+                fp.write('>{}\n{}\n'.format(
+                    seq.headerdesc,
+                    bytes(seq.seqtext).decode('ASCII')
+                ))
         proc = Popen(
             [*minimap2_execute,
              '-c',           # output CIGAR in PAF

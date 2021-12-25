@@ -7,7 +7,7 @@ from typing import (
     List
 )
 
-from .processors import Processor
+from .processor import Processor
 from .parsers import msa, paf, fasta, minimap2
 from .models.sequence import RefSeqPair, Sequence
 

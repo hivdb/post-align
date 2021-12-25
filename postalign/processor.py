@@ -1,5 +1,5 @@
 from typing import Callable, Iterable, Generic, TypeVar
-from ..models.sequence import RefSeqPair
+from .models.sequence import RefSeqPair
 
 
 ReturnType = TypeVar('ReturnType', Iterable[RefSeqPair], Iterable[str])
