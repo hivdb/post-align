@@ -1,13 +1,13 @@
-from typing import TextIO, Iterable, Generator
+from typing import Type, TextIO, Iterable, Generator
 
-from ..models import Sequence, NAPosition
+from ..models import Sequence, Position
 
 GAP_CHARS = b'.-'
 
 
 def load(
     fp: TextIO,
-    seqtype: str,
+    seqtype: Type[Position],
     *,
     remove_gaps: bool = False
 ) -> Generator[Sequence, None, None]:
@@ -20,7 +20,7 @@ def load(
         seqid += 1
         if remove_gaps:
             for gap in GAP_CHARS:
-                curseq.replace(bytes(gap), b'')
+                curseq.replace(bytes([gap]), b'')
 
         headerdesc = header.split(' ', 1)
         description = ''
@@ -29,7 +29,7 @@ def load(
         return Sequence(
             header=headerdesc[0],
             description=description,
-            seqtext=NAPosition.init_from_nastring(curseq),
+            seqtext=seqtype.init_from_bytes(curseq),
             seqid=seqid,
             seqtype=seqtype,
             abs_seqstart=0,

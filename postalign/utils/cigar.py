@@ -1,5 +1,5 @@
 import re
-from typing import TypeVar, List, Tuple
+from typing import TypeVar, List, Tuple, Type
 
 from ..models import Position
 
@@ -31,13 +31,14 @@ class CIGAR:
 
     def get_alignment(
         self: T,
-        refseq: Position,
-        seq: Position
-    ) -> Tuple[Position, Position]:
+        refseq: List[Position],
+        seq: List[Position],
+        seqtype: Type[Position]
+    ) -> Tuple[List[Position], List[Position]]:
         num: int
         op: str
-        aligned_refseq: Position = refseq[self.ref_start:]
-        aligned_seq: Position = seq[self.seq_start:]
+        aligned_refseq: List[Position] = refseq[self.ref_start:]
+        aligned_seq: List[Position] = seq[self.seq_start:]
         offset: int = 0
         for num, op in self.cigar_tuple:
             if op == 'M':
@@ -45,13 +46,13 @@ class CIGAR:
             elif op in ('D', 'N'):
                 aligned_seq = (
                     aligned_seq[:offset] +
-                    type(aligned_seq).init_gaps(gaplen=num) +
+                    seqtype.init_gaps(num) +
                     aligned_seq[offset:])
                 offset += num
             elif op == 'I':
                 aligned_refseq = (
                     aligned_refseq[:offset] +
-                    type(aligned_refseq).init_gaps(gaplen=num) +
+                    seqtype.init_gaps(num) +
                     aligned_refseq[offset:])
                 offset += num
         aligned_seq = aligned_seq[:offset]

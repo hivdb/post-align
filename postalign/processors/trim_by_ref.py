@@ -12,7 +12,7 @@ RIGHT_TRIM_PATTERN: re.Pattern = re.compile(r'[.-]+$')
 
 def find_trim_slice(seq: Sequence) -> slice:
     left_trim: Optional[int] = None
-    seqtext_str: str = bytes(seq.seqtext).decode('ASCII')
+    seqtext_str: str = seq.seqtext_as_str
     match: Optional[re.Match] = LEFT_TRIM_PATTERN.search(seqtext_str)
     if match:
         left_trim = match.span()[1]

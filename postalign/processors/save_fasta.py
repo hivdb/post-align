@@ -47,12 +47,12 @@ def save_fasta(
                     yield '>{}\n'.format(refseq.header_with_modifiers)
                 else:
                     yield '>{}\n'.format(refseq.header)
-                yield '{}\n'.format(refseq.seqtext)
+                yield '{}\n'.format(refseq.seqtext_as_str)
 
             if modifiers:
                 yield '>{}\n'.format(seq.header_with_modifiers)
             else:
                 yield '>{}\n'.format(seq.header)
-            yield '{}\n'.format(seq.seqtext)
+            yield '{}\n'.format(seq.seqtext_as_str)
 
     return processor

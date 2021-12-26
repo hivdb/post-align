@@ -1,30 +1,39 @@
-from typing import Type, TypeVar, Union, Iterable, Generator
-
-T = TypeVar('T', bound='AAPosition')
+from typing import Type, List, ByteString
 
 
 class AAPosition:
 
+    notation: int
+    pos: int
+    flag: int
+    is_gap: bool
+
     @classmethod
-    def init_gaps(cls: Type[T], gaplen: int) -> T:
+    def init_gaps(cls: Type['AAPosition'], gaplen: int) -> List['AAPosition']:
+        raise NotImplementedError('Amino acid sequence is not yet supported')
+
+    @classmethod
+    def init_from_bytes(
+        cls: Type['AAPosition'],
+        seq_text: ByteString
+    ) -> List['AAPosition']:
         raise NotImplementedError('Amino acid sequence is not yet supported')
 
     @staticmethod
-    def list_contains_any_gap(aas: Iterable[T]) -> bool:
+    def any_has_gap(aas: List['AAPosition']) -> bool:
         raise NotImplementedError('Amino acid sequence is not yet supported')
 
     @staticmethod
-    def list_contains_all_gap(aas: Iterable[T]) -> bool:
+    def all_have_gap(aas: List['AAPosition']) -> bool:
         raise NotImplementedError('Amino acid sequence is not yet supported')
 
-    def __getitem__(self: T, index: Union[int, slice]) -> T:
+    @staticmethod
+    def count_gaps(nas: List['AAPosition']) -> int:
         raise NotImplementedError('Amino acid sequence is not yet supported')
 
-    def __add__(self: T, other: T) -> T:
-        raise NotImplementedError('Amino acid sequence is not yet supported')
-
-    def __len__(self: T) -> int:
-        raise NotImplementedError('Amino acid sequence is not yet supported')
-
-    def __iter__(self: T) -> Generator[T, None, None]:
+    @classmethod
+    def as_str(
+        cls: Type['AAPosition'],
+        nas: List['AAPosition']
+    ) -> str:
         raise NotImplementedError('Amino acid sequence is not yet supported')

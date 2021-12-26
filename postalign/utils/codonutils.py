@@ -153,7 +153,7 @@ def translate_codon(
     del_as: bytes = b'-'
 ) -> bytes:
     nas = nas[:3]
-    nas_bytes: bytes = NAPosition.join_as_bytes(nas)
+    nas_bytes: bytes = NAPosition.as_bytes(nas)
     aas: Tuple[int, ...] = _translate_codon(
         tuple(nas_bytes),
         tuple(fs_as),
@@ -168,7 +168,7 @@ def translate_codons(
     fs_as: bytes = b'X',
     del_as: bytes = b'-'
 ) -> List[bytes]:
-    nas_bytes: bytes = NAPosition.join_as_bytes(nas)
+    nas_bytes: bytes = NAPosition.as_bytes(nas)
     codon: List[int]
     fs_as_tuple: Tuple[int, ...] = tuple(fs_as)
     del_as_tuple: Tuple[int, ...] = tuple(del_as)

@@ -3,10 +3,10 @@ from io import StringIO
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired, PIPE
 from tempfile import TemporaryDirectory
-from typing import TextIO, List, Iterable
+from typing import TextIO, List, Iterable, Type
 
 from . import fasta, paf
-from ..models.sequence import RefSeqPair
+from ..models.sequence import RefSeqPair, Position
 
 DEFAULT_TIMEOUT = 300
 
@@ -14,7 +14,7 @@ DEFAULT_TIMEOUT = 300
 def load(
     fastafp: TextIO,
     reference: TextIO,
-    seqtype: str,
+    seqtype: Type[Position],
     *,
     minimap2_execute: List[str] = ['minimap2']
 ) -> Iterable[RefSeqPair]:
@@ -27,14 +27,14 @@ def load(
         with refpath.open('w') as fp:
             fp.write('>{}\n{}'.format(
                 ref.headerdesc,
-                str(ref.seqtext)
+                ref.seqtext_as_str
             ))
         seqpath = tempdir / 'query.fa'
         with seqpath.open('w') as fp:
             for seq in fasta.load(fastafp, seqtype, remove_gaps=True):
                 fp.write('>{}\n{}\n'.format(
                     seq.headerdesc,
-                    str(seq.seqtext)
+                    seq.seqtext_as_str
                 ))
         proc = Popen(
             [*minimap2_execute,

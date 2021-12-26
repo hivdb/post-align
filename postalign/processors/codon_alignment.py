@@ -5,7 +5,7 @@ from itertools import chain, groupby
 
 from ..cli import cli
 from ..utils import group_by_codons
-from ..models import Sequence, RefSeqPair, NAPosition, NAPosOrList
+from ..models import Sequence, RefSeqPair, NAPosition
 from ..utils.codonutils import translate_codons
 from ..utils.blosum62 import blosum62_score
 
@@ -36,7 +36,7 @@ def find_first_gap(
 ) -> int:
     idx: int
     for idx, na in enumerate(nas[start:]):
-        if na.is_single_gap:
+        if na.is_gap:
             return start + idx
     return -1
 
@@ -50,8 +50,8 @@ def move_gap_to_codon_end(
     new_codons: List[List[NAPosition]] = []
     for codon in codons:
         new_codons.append(
-            [na for na in codon if not na.is_single_gap] +
-            [na for na in codon if na.is_single_gap]
+            [na for na in codon if not na.is_gap] +
+            [na for na in codon if na.is_gap]
         )
     return new_codons
 
@@ -79,8 +79,8 @@ def separate_gaps_from_nas(
     nas: List[NAPosition]
 ) -> Tuple[List[NAPosition], List[NAPosition]]:
     na: NAPosition
-    nongaps: List[NAPosition] = [na for na in nas if not na.is_single_gap]
-    gaps: List[NAPosition] = [na for na in nas if na.is_single_gap]
+    nongaps: List[NAPosition] = [na for na in nas if not na.is_gap]
+    gaps: List[NAPosition] = [na for na in nas if na.is_gap]
     return nongaps, gaps
 
 
@@ -136,7 +136,7 @@ def paired_find_best_matches(
     bp1_indices: Set[int] = set()
     bp: int = 0
     for idx, na in enumerate(refnas):
-        if na.is_single_gap:
+        if na.is_gap:
             continue
         bp = (bp + 1) % 3
         if bp == 1:
@@ -159,9 +159,9 @@ def codon_pairs_group_key(cdpair: Tuple[
     refcd: List[NAPosition]
     seqcd: List[NAPosition]
     _, (refcd, seqcd) = cdpair
-    if NAPosition.list_contains_any_gap(refcd):
+    if NAPosition.any_has_gap(refcd):
         return REFGAP
-    if NAPosition.list_contains_any_gap(seqcd):
+    if NAPosition.any_has_gap(seqcd):
         return SEQGAP
     return NOGAP
 
@@ -188,7 +188,7 @@ def extend_codons_until_gap(
     for idx, (refcd, seqcd) in enumerate(zip(ref_codons, seq_codons)):
         broken: bool = False
         for na in chain(refcd, seqcd):
-            if na.is_single_gap:
+            if na.is_gap:
                 endidx = idx
                 broken = True
                 break
@@ -368,8 +368,8 @@ def realign_gaps(
 @cython.inline
 @cython.returns(tuple)
 def remove_matching_gaps(
-    refnas: NAPosOrList,
-    seqnas: NAPosOrList
+    refnas: List[NAPosition],
+    seqnas: List[NAPosition]
 ) -> Tuple[List[NAPosition], List[NAPosition]]:
     """Remove matching gaps
 
@@ -386,7 +386,7 @@ def remove_matching_gaps(
     cleaned_refnas: List[NAPosition] = []
     cleaned_seqnas: List[NAPosition] = []
     for refna, seqna in zip(refnas, seqnas):
-        if not refna.is_single_gap or not seqna.is_single_gap:
+        if not refna.is_gap or not seqna.is_gap:
             cleaned_refnas.append(refna)
             cleaned_seqnas.append(seqna)
     return cleaned_refnas, cleaned_seqnas
@@ -402,11 +402,8 @@ def codon_align(
     refend: int,
     check_boundary: bool = True
 ) -> RefSeqPair:
-    reftext: NAPosition = refseq.seqtext
-    if check_boundary and (
-        reftext[0].is_single_gap or
-        reftext[-1].is_single_gap
-    ):
+    refnas: List[NAPosition] = refseq.seqtext
+    if check_boundary and (refnas[0].is_gap or refnas[-1].is_gap):
         raise click.ClickException(
             'Unable to perform codon-alignment without the alignments '
             'being trimmed properly. Can be solved by pre-processing '
@@ -415,19 +412,17 @@ def codon_align(
 
     idxstart: int
     idxend: int
-    idxstart, idxend = reftext.posrange2indexrange(refstart, refend)
+    idxstart, idxend = NAPosition.posrange2indexrange(refnas, refstart, refend)
     if idxstart == idxend:
         # nothing to be codon aligned
         return refseq, seq
 
     # step 1: apply reading frame
-    reftext = reftext[idxstart:idxend]
-    seqtext = seq.seqtext[idxstart:idxend]
+    refnas = refnas[idxstart:idxend]
+    seqnas: List[NAPosition] = seq.seqtext[idxstart:idxend]
 
     # step 2: remove matched gaps (due to MSA) from ref and seq
-    refnas: List[NAPosition]
-    seqnas: List[NAPosition]
-    refnas, seqnas = remove_matching_gaps(reftext, seqtext)
+    refnas, seqnas = remove_matching_gaps(refnas, seqnas)
 
     # step 3: gather and re-align nearby gaps located in same window
     refnas, seqnas = realign_gaps(refnas, seqnas, window_size)
@@ -435,12 +430,12 @@ def codon_align(
     # last step: save "codon aligned" refseq and seq
     refseq = refseq.push_seqtext(
         refseq.seqtext[:idxstart] +
-        NAPosition.join(refnas) +
+        refnas +
         refseq.seqtext[idxend:],
         'codonalign({},{})'.format(refstart, refend), 0)
     seq = seq.push_seqtext(
         seq.seqtext[:idxstart] +
-        NAPosition.join(seqnas) +
+        seqnas +
         seq.seqtext[idxend:],
         'codonalign({},{})'.format(refstart, refend), 0)
     return refseq, seq
@@ -491,20 +486,20 @@ def codon_alignment(
         refseq: Sequence
         seq: Sequence
         for refseq, seq in iterator:
-            if refseq.seqtype != 'NA':
+            if refseq.seqtype != NAPosition:
                 raise click.ClickException(
                     'Codon alignment only applies to nucleotide '
                     'sequences.')
 
-            seqtext: NAPosition = refseq.seqtext
+            seqnas: List[NAPosition] = refseq.seqtext
 
-            if seqtext.empty():
+            if not seqnas:
                 # skip empty sequences
                 yield refseq, seq
             else:
                 my_ref_end: int = ref_end
                 if my_ref_end <= 0:
-                    my_ref_end = seqtext.max_pos()
+                    my_ref_end = NAPosition.max_pos(seqnas)
                 yield codon_align(
                     refseq,
                     seq,

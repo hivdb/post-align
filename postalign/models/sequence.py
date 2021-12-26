@@ -1,6 +1,9 @@
 import re
 from typing import (
+    Set,
+    Dict,
     Tuple,
+    Type,
     TypeVar,
     Generic,
     Optional,
@@ -19,23 +22,21 @@ GAP_CHARS = '.-'
 GAP_PATTERN = re.compile(r'^[.-]+$')
 ANY_GAP_PATTERN = re.compile(r'[.-]')
 
-SEQTYPES = ['NA']  # currently we don't support AA sequence
-
 SKIP_VALIDATION = object()
 
-ILLEGAL_PATTERNS = {
-    'NA': re.compile(r'[^ACGTUWSMKRYBDHVN.-]')
-}
-
 Position = TypeVar('Position', NAPosition, AAPosition)
+
+VALID_NOTATIONS: Dict[Type[Union[NAPosition, AAPosition]], Set[int]] = {
+    NAPosition: set(b'ACGTUWSMKRYBDHVN.-')
+}
 
 
 class Sequence(Generic[Position]):
     header: str
     description: str
-    seqtext: Position
+    seqtext: List[Position]
     seqid: int
-    seqtype: str
+    seqtype: Type[Position]
     abs_seqstart: int
     modifiers_: Optional[ModifierLinkedList]
 
@@ -43,33 +44,49 @@ class Sequence(Generic[Position]):
         self: 'Sequence', *,
         header: str,
         description: str,
-        seqtext: Position,
+        seqtext: List[Position],
         seqid: int,
-        seqtype: str,
+        seqtype: Type[Position],
         abs_seqstart: int,
         modifiers_: Optional[ModifierLinkedList] = None,
         skip_invalid: Union[bool, object] = True
     ) -> None:
-        if seqtype == 'AA' or isinstance(seqtext, AAPosition):
-            raise NotImplementedError('Amino acid is not support yet')
-        if seqtype != 'NA' and not isinstance(seqtext, NAPosition):
+        one: Position
+
+        if (
+            seqtype == AAPosition or
+            any(isinstance(one, AAPosition) for one in seqtext)
+        ):
+            raise NotImplementedError('Amino acid is not yet supported')
+
+        if (
+            seqtype != NAPosition and
+            not all(isinstance(one, NAPosition) for one in seqtext)
+        ):
             raise ValueError(
-                "seqtext must be an instance of "
-                "NAPosition when seqtype is 'NA'"
+                "seqtext must be a list of NAPosition instances "
+                "when seqtype is 'NAPosition'"
             )
+
         if skip_invalid is not SKIP_VALIDATION:
-            testseqtext: str = str(seqtext)
-            illegal_pattern: re.Pattern = ILLEGAL_PATTERNS[seqtype]
-            invalids: List[str] = illegal_pattern.findall(testseqtext)
+            valid_notations: set[int] = VALID_NOTATIONS[seqtype]
+            valids: List[Position] = []
+            invalids: Set[int] = set()
+            for one in seqtext:
+                if one.notation in valid_notations:
+                    valids.append(one)
+                else:
+                    invalids.add(one.notation)
             if invalids and skip_invalid:
-                seqtext = NAPosition.init_from_nastring(
-                    bytes(illegal_pattern.sub('-', testseqtext), 'ASCII')
-                )
+                seqtext = valids
             elif invalids:
                 raise ValueError(
                     'sequence {} contains invalid notation(s) ({})'
                     'while skip_invalid=False'
-                    .format(header, ''.join(set(invalids)))
+                    .format(
+                        header,
+                        str(bytes(sorted(invalids)), 'ASCII')
+                    )
                 )
         self.header = header
         self.description = description
@@ -78,6 +95,11 @@ class Sequence(Generic[Position]):
         self.seqtype = seqtype
         self.abs_seqstart = abs_seqstart
         self.modifiers_ = modifiers_
+
+    @property
+    def seqtext_as_str(self: 'Sequence') -> str:
+        seqtype: Type[Position] = self.seqtype
+        return seqtype.as_str(self.seqtext)
 
     @property
     def headerdesc(self: 'Sequence') -> str:
@@ -97,8 +119,10 @@ class Sequence(Generic[Position]):
         self: 'Sequence',
         index: Union[int, slice]
     ) -> Union[Position, 'Sequence']:
-        seqtext: Position = self.seqtext[index]
+        seqtext: List[Position] = self.seqtext
         if isinstance(index, slice):
+            seqtext = seqtext[index]
+            seqtype: Type[Position] = self.seqtype
             start: int
             end: int
             slice_remain_len: int
@@ -136,7 +160,7 @@ class Sequence(Generic[Position]):
                     )
             else:
                 raise ValueError(
-                    'step slicing is unsupported: {!r}'.format(index)
+                    'step slicing is not supported: {!r}'.format(index)
                 )
             if replace_flag:
                 modifiers = self.modifiers.replace_last(
@@ -147,9 +171,9 @@ class Sequence(Generic[Position]):
 
             abs_seqstart = self.abs_seqstart + start
             for gap in GAP_CHARS:
-                abs_seqstart -= self.seqtext[:start].count(gap)
+                abs_seqstart -= seqtype.count_gaps(self.seqtext[:start])
 
-            return type(self)(
+            return Sequence(
                 header=self.header,
                 description=self.description,
                 seqtext=seqtext,
@@ -158,7 +182,8 @@ class Sequence(Generic[Position]):
                 modifiers_=modifiers,
                 abs_seqstart=abs_seqstart,
                 skip_invalid=SKIP_VALIDATION)
-        return seqtext
+        else:
+            return seqtext[index]
 
     def __add__(self: 'Sequence', other: 'Sequence') -> 'Sequence':
         if not isinstance(other, Sequence):
@@ -190,7 +215,7 @@ class Sequence(Generic[Position]):
 
     def push_seqtext(
         self: 'Sequence',
-        seqtext: Position,
+        seqtext: List[Position],
         modtext: str,
         start_offset: int,
         **kw: Any
@@ -216,7 +241,7 @@ class Sequence(Generic[Position]):
 
     def replace_seqtext(
         self: 'Sequence',
-        seqtext: Position,
+        seqtext: List[Position],
         modtext: str,
         start_offset: int,
         **kw: Any

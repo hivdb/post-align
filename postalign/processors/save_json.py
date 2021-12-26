@@ -8,7 +8,7 @@ from more_itertools import chunked
 from ..cli import cli
 from ..utils import group_by_gene_codons
 from ..utils.codonutils import translate_codon
-from ..models import RefSeqPair, NAPosition, Sequence
+from ..models import RefSeqPair, NAPosition, Sequence, NAFlag
 from ..processor import Processor, output_processor
 
 from .trim_by_ref import find_trim_slice
@@ -131,8 +131,8 @@ def save_json(
         seq: Sequence
         yield '[\n'
         for idx, (refseq, seq) in enumerate(iterator):
-            reftext: NAPosition = refseq.seqtext
-            seqtext: NAPosition = seq.seqtext
+            reftext: List[NAPosition] = refseq.seqtext
+            seqtext: List[NAPosition] = seq.seqtext
             # refstart = None
             # refend = None
             if trim_by_seq:
@@ -140,8 +140,8 @@ def save_json(
                 end: int
                 slicekey: slice = find_trim_slice(seq)
                 start, end, _ = slicekey.indices(len(seq))
-                seqtext[:start].set_flag('trim_by_seq')
-                seqtext[end:].set_flag('trim_by_seq')
+                NAPosition.set_flag(seqtext[:start], NAFlag.TRIM_BY_SEQ)
+                NAPosition.set_flag(seqtext[end:], NAFlag.TRIM_BY_SEQ)
 
                 # left_reftext = reftext[:start]
                 # right_reftext = reftext[end:]
@@ -186,25 +186,25 @@ def save_json(
                     if len(refcd) < 3:
                         # partial matched reference, skip
                         continue
-                    nalen: int = sum(not na.is_single_gap for na in seqcd)
+                    nalen: int = NAPosition.count_nongaps(seqcd)
                     if 0 < nalen < 3:
                         ins_fs_len = 0
                         del_fs_len = 3 - nalen
                     else:
                         ins_fs_len = nalen % 3
                         del_fs_len = 0
-                    codon_text: str = NAPosition.join_as_str(seqcd[:3])
-                    if any(na.any_has_flag('trim_by_seq') for na in seqcd[:3]):
+                    codon_text: str = NAPosition.as_str(seqcd[:3])
+                    if NAPosition.any_has_flag(seqcd[:3], NAFlag.TRIM_BY_SEQ):
                         continue
                     codonpairs.append({
                         'Position': pos0 + 1,
-                        'RefCodonText': NAPosition.join_as_str(refcd[:3]),
+                        'RefCodonText': NAPosition.as_str(refcd[:3]),
                         'CodonText': codon_text,
                         'RefAminoAcidText': str(
                             translate_codon(refcd[:3]), 'ASCII'),
                         'AminoAcidText': str(
                             translate_codon(seqcd[:3]), 'ASCII'),
-                        'InsertedCodonsText': NAPosition.join_as_str(
+                        'InsertedCodonsText': NAPosition.as_str(
                             seqcd[3:len(seqcd) - ins_fs_len]
                         ),
                         'IsInsertion': len(refcd) > 5,
@@ -212,8 +212,8 @@ def save_json(
                     })
                     posnas: List[Optional[int]] = []
                     for na in seqcd:
-                        min_pos: int = na.min_pos()
-                        posnas.append(min_pos if min_pos > -1 else None)
+                        pos: int = na.pos
+                        posnas.append(pos if pos > -1 else None)
                     aligned_sites.append({
                         'PosAA': pos0 + 1,  # reference location
                         'PosNAs': posnas,
@@ -224,7 +224,7 @@ def save_json(
                             'Position': pos0 + 1,
                             'GapLength': ins_fs_len,
                             'NucleicAcidsText':
-                            NAPosition.join_as_str(seqcd[-ins_fs_len:]),
+                            NAPosition.as_str(seqcd[-ins_fs_len:]),
                             'IsInsertion': True
                         })
                     elif del_fs_len:

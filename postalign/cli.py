@@ -4,12 +4,13 @@ from typing import (
     TextIO,
     Optional,
     Iterable,
-    List
+    List,
+    Type
 )
 
 from .processor import Processor
 from .parsers import msa, paf, fasta, minimap2
-from .models.sequence import RefSeqPair, Sequence
+from .models.sequence import RefSeqPair, Sequence, NAPosition
 
 
 INPUT_FORMAT = ['MSA', 'PAF', 'MINIMAP2']
@@ -26,7 +27,7 @@ def reference_callback(
     try:
         retvalue = open(value)
         if alignment_format == 'MSA':
-            ref: Sequence = next(fasta.load(retvalue, seqtype='NA'))
+            ref: Sequence = next(fasta.load(retvalue, seqtype=NAPosition))
             retvalue = ref.header
     except (KeyboardInterrupt, SystemExit):
         raise
@@ -166,7 +167,7 @@ def process_pipeline(
     verbose: bool,
     enable_profile: bool
 ) -> None:
-    seqtype: str = 'NA'
+    seqtype: Type[NAPosition] = NAPosition
     iterator: Iterable[RefSeqPair]
     check_processors(processors)
 

@@ -1,8 +1,8 @@
 import click
-from typing import TextIO, Generator, Iterable
+from typing import Type, TextIO, Generator, Iterable
 from itertools import tee
 
-from ..models import RefSeqPair, Sequence
+from ..models import RefSeqPair, Sequence, Position
 
 from . import fasta
 
@@ -10,7 +10,7 @@ from . import fasta
 def load(
     msafp: TextIO,
     reference: str,
-    seqtype: str
+    seqtype: Type[Position]
 ) -> Generator[RefSeqPair, None, None]:
     ref_finder: Iterable[Sequence]
     sequences: Iterable[Sequence] = fasta.load(msafp, seqtype)
