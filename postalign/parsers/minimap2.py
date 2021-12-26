@@ -27,14 +27,14 @@ def load(
         with refpath.open('w') as fp:
             fp.write('>{}\n{}'.format(
                 ref.headerdesc,
-                bytes(ref.seqtext).decode('ASCII')
+                str(ref.seqtext)
             ))
         seqpath = tempdir / 'query.fa'
         with seqpath.open('w') as fp:
             for seq in fasta.load(fastafp, seqtype, remove_gaps=True):
                 fp.write('>{}\n{}\n'.format(
                     seq.headerdesc,
-                    bytes(seq.seqtext).decode('ASCII')
+                    str(seq.seqtext)
                 ))
         proc = Popen(
             [*minimap2_execute,

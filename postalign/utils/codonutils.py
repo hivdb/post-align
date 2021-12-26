@@ -123,7 +123,7 @@ def translate_codon(
                   NAPosition.list_contains_any_gap(nas)):
         # codon contains out-frame deletion
         return fs_as
-    nas_bytes: bytes = b''.join(bytes(na) for na in nas)
+    nas_bytes: bytes = NAPosition.join_as_bytes(nas)
     nas_bytes = nas_bytes.replace(b'-', b'N')
     if nas_bytes in CODON_TABLE:
         return CODON_TABLE[nas_bytes]

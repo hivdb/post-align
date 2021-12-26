@@ -58,12 +58,12 @@ class Sequence(Generic[Position]):
                 "NAPosition when seqtype is 'NA'"
             )
         if skip_invalid is not SKIP_VALIDATION:
-            testseqtext: str = str(bytes(seqtext), 'U8')
+            testseqtext: str = str(seqtext)
             illegal_pattern: re.Pattern = ILLEGAL_PATTERNS[seqtype]
             invalids: List[str] = illegal_pattern.findall(testseqtext)
             if invalids and skip_invalid:
                 seqtext = NAPosition.init_from_nastring(
-                    bytes(illegal_pattern.sub('-', testseqtext), 'U8')
+                    bytes(illegal_pattern.sub('-', testseqtext), 'ASCII')
                 )
             elif invalids:
                 raise ValueError(

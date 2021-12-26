@@ -368,8 +368,8 @@ def realign_gaps(
 
     # XXX: Do we need to move gaps to each codon's end?
     # Since anyway we'll run gather_gaps
-    refcodons = move_gap_to_codon_end(refcodons)
-    seqcodons = move_gap_to_codon_end(seqcodons)
+    # refcodons = move_gap_to_codon_end(refcodons)
+    # seqcodons = move_gap_to_codon_end(seqcodons)
 
     refcodons, seqcodons = gather_gaps(refcodons, seqcodons, window_size)
     refcodons, seqcodons = adjust_gap_placement(
@@ -494,18 +494,23 @@ def codon_alignment(
 
     @intermediate_processor('codon-alignment')
     def processor(iterator: Iterable[RefSeqPair]) -> Iterable[RefSeqPair]:
+        refseq: Sequence
+        seq: Sequence
         for refseq, seq in iterator:
-            my_ref_end = ref_end
-            if my_ref_end <= 0:
-                my_ref_end = refseq.seqtext.max_pos
             if refseq.seqtype != 'NA':
                 raise click.ClickException(
                     'Codon alignment only applies to nucleotide '
                     'sequences.')
-            if len(seq.seqtext) == 0:
+
+            seqtext: NAPosition = refseq.seqtext
+
+            if seqtext.empty():
                 # skip empty sequences
                 yield refseq, seq
             else:
+                my_ref_end: int = ref_end
+                if my_ref_end <= 0:
+                    my_ref_end = seqtext.max_pos()
                 yield codon_align(
                     refseq,
                     seq,

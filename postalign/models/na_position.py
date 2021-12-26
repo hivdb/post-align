@@ -28,6 +28,7 @@ def enumerate_seq_pos(seq_text: bytes) -> List[int]:
     return seq_pos
 
 
+@cython.cclass
 class NAPosition:
 
     @classmethod
@@ -35,7 +36,7 @@ class NAPosition:
         return cls(b'', [], [])
 
     @classmethod
-    def init_gaps(cls: Type['NAPosition'], gaplen: int) -> 'NAPosition':
+    def init_gaps(cls: Type['NAPosition'], *, gaplen: int) -> 'NAPosition':
         seq_text: bytes = b'-' * gaplen
         seq_pos: List[int] = [-1] * gaplen
         seq_flag: List[Set[str]] = [set() for _ in seq_pos]
@@ -65,13 +66,13 @@ class NAPosition:
         seq_flag: List[Set[str]] = [set() for _ in seq_pos]
         return cls(seq_text, seq_pos, seq_flag)
 
-    _seq_text: bytes
-    _seq_pos: List[int]
-    _seq_flag: List[Set[str]]
-    _min_pos: Optional[int]
-    _max_pos: Optional[int]
+    _seq_text: bytes = cython.declare(bytes, visibility='public')
+    _seq_pos: List[int] = cython.declare(list, visibility='public')
+    _seq_flag: List[Set[str]] = cython.declare(list, visibility='public')
+    is_single_gap: bool = cython.declare(cython.bint, visibility='public')
+    _min_pos: int
+    _max_pos: int
     _is_gap: Optional[bool]
-    _is_single_gap: Optional[bool]
 
     def __init__(
         self: 'NAPosition',
@@ -82,8 +83,8 @@ class NAPosition:
         self._seq_text = seq_text
         self._seq_pos = seq_pos
         self._seq_flag = seq_flag
-        self._min_pos = None
-        self._max_pos = None
+        self._min_pos = -1
+        self._max_pos = -1
         if len(seq_text) == 1:
             self._is_gap = seq_text in GAP_CHARS
             self.is_single_gap = self._is_gap
@@ -91,33 +92,28 @@ class NAPosition:
             self._is_gap = None
             self.is_single_gap = False
 
-    @property
-    def min_pos(self: 'NAPosition') -> Optional[int]:
-        if self._min_pos is None:
+    def min_pos(self: 'NAPosition') -> int:
+        if self._min_pos < 0:
             self._min_pos = next(
-                (pos for pos in self._seq_pos if pos > 0), None
+                (pos for pos in self._seq_pos if pos > 0), -1
             )
         return self._min_pos
 
-    @property
-    def max_pos(self: 'NAPosition') -> Optional[int]:
-        if self._max_pos is None:
+    def max_pos(self: 'NAPosition') -> int:
+        if self._max_pos < 0:
             self._max_pos = next(
-                (pos for pos in reversed(self._seq_pos) if pos > 0), None
+                (pos for pos in reversed(self._seq_pos) if pos > 0), -1
             )
         return self._max_pos
 
-    @property
     def empty(self: 'NAPosition') -> bool:
-        return self.min_pos is None
+        return self.min_pos() < 0
 
-    @cython.ccall
     def set_flag(self: 'NAPosition', flag: str) -> None:
         one: Set[str]
         for one in self._seq_flag:
             one.add(flag)
 
-    @cython.ccall
     def any_has_flag(self: 'NAPosition', flag: str) -> bool:
         one: Set[str]
         for one in self._seq_flag:
@@ -125,12 +121,10 @@ class NAPosition:
                 return True
         return False
 
-    @cython.ccall
     def all_have_flag(self: 'NAPosition', flag: str) -> bool:
         one: Set[str]
         return all(flag in one for one in self._seq_flag)
 
-    @cython.ccall
     def pos2index(self: 'NAPosition', pos: int, first: str) -> int:
         if first == 'first':
             return self._seq_pos.index(pos)
@@ -139,14 +133,13 @@ class NAPosition:
         else:
             raise ValueError('invalid second parameter')
 
-    @cython.ccall
     def posrange2indexrange(
         self: 'NAPosition',
         pos_start: int,
         pos_end: int
     ) -> Tuple[int, int]:
-        max_pos: Optional[int] = self.max_pos
-        min_pos: Optional[int] = self.min_pos
+        max_pos: Optional[int] = self.max_pos()
+        min_pos: Optional[int] = self.min_pos()
         if max_pos is None or min_pos is None:
             return 0, 0
         if pos_start > max_pos:
@@ -222,10 +215,7 @@ class NAPosition:
         return value in self._seq_text
 
     def __str__(self: 'NAPosition') -> str:
-        raise NotImplementedError(
-            'str() for NAPosition is deliberately not supported, '
-            'use bytes() instead'
-        )
+        return str(self._seq_text, 'ASCII')
 
     def __bytes__(self: 'NAPosition') -> bytes:
         return self._seq_text
@@ -253,7 +243,7 @@ class NAPosition:
         seq_flag = self._seq_flag + other._seq_flag
         return type(self)(seq_text, seq_pos, seq_flag)
 
-    @cython.ccall
+    # @cython.ccall
     def count(
         self: 'NAPosition',
         sub: Union[int, bytes],
@@ -262,7 +252,7 @@ class NAPosition:
     ) -> int:
         return self._seq_text.count(sub, start, end)
 
-    @cython.ccall
+    # @cython.ccall
     def remove_gaps(self: 'NAPosition') -> 'NAPosition':
         return type(self).init_from_triplets([
             (na, pos, flag)
@@ -272,7 +262,7 @@ class NAPosition:
             if na not in GAP_CHARS
         ])
 
-    @cython.ccall
+    # @cython.ccall
     def is_gap(self: 'NAPosition') -> bool:
         if self._is_gap is None:
             self._is_gap = False
@@ -297,12 +287,19 @@ class NAPosition:
         return cls(seq_text, seq_pos, seq_flag)
 
     @classmethod
-    def join_for_str(
+    def join_as_bytes(
+        cls: Type['NAPosition'],
+        value: Iterable['NAPosition']
+    ) -> bytes:
+        return b''.join([one._seq_text for one in value])
+
+    @classmethod
+    def join_as_str(
         cls: Type['NAPosition'],
         value: Iterable['NAPosition']
     ) -> str:
         seq_text: bytes = b''.join([one._seq_text for one in value])
-        return seq_text.decode('ASCII')
+        return str(seq_text, 'ASCII')
 
     @staticmethod
     def list_contains_any_gap(nas: Iterable['NAPosition']) -> bool:

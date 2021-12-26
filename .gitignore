@@ -141,3 +141,5 @@ dmypy.json
 
 *.swp
 *.swo
+
+*.c

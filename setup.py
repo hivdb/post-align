@@ -5,10 +5,19 @@ import os
 import re
 import ast
 import setuptools
+from Cython.Build import cythonize  # type: ignore
 from typing import Optional, List, Set
+from setuptools.extension import Extension
 
 version: str
 _version_re: re.Pattern = re.compile(r'VERSION\s+=\s+(.*)')
+
+extensions = [
+    Extension(
+        name='postalign.models.na_position',
+        sources=['postalign/models/na_position.py']
+    )
+]
 
 with open('postalign/version.py', 'rb') as f:
     match: Optional[re.Match] = _version_re.search(
@@ -49,6 +58,14 @@ if __name__ == '__main__':
             'postalign/utils'
         ],
         install_requires=req('requirements.txt'),
+        ext_modules=cythonize(
+            extensions,
+            compiler_directives={
+                'language_level': '3',
+                'profile': False,
+                'linetrace': False
+            }
+        ),
         # tests_require=reqs('test-requirements.txt'),
         # include_package_data=True,
         entry_points={'console_scripts': [

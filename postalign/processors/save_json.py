@@ -186,8 +186,8 @@ def save_json(
                     if len(refcd) < 3:
                         # partial matched reference, skip
                         continue
-                    # pos0 = (min(na.min_pos for na in refcd
-                    #             if na.min_pos) - refstart) // 3
+                    # pos0 = (min(na.min_pos() for na in refcd
+                    #             if na.min_pos()) - refstart) // 3
                     nalen: int = sum(not na.is_gap() for na in seqcd)
                     if 0 < nalen < 3:
                         ins_fs_len = 0
@@ -195,18 +195,18 @@ def save_json(
                     else:
                         ins_fs_len = nalen % 3
                         del_fs_len = 0
-                    codon_text: str = NAPosition.join_for_str(seqcd[:3])
+                    codon_text: str = NAPosition.join_as_str(seqcd[:3])
                     if any(na.any_has_flag('trim_by_seq') for na in seqcd[:3]):
                         continue
                     codonpairs.append({
                         'Position': pos0 + 1,
-                        'RefCodonText': NAPosition.join_for_str(refcd[:3]),
+                        'RefCodonText': NAPosition.join_as_str(refcd[:3]),
                         'CodonText': codon_text,
                         'RefAminoAcidText': str(
                             translate_codon(refcd[:3]), 'ASCII'),
                         'AminoAcidText': str(
                             translate_codon(seqcd[:3]), 'ASCII'),
-                        'InsertedCodonsText': NAPosition.join_for_str(
+                        'InsertedCodonsText': NAPosition.join_as_str(
                             seqcd[3:len(seqcd) - ins_fs_len]
                         ),
                         'IsInsertion': len(refcd) > 5,
@@ -214,7 +214,7 @@ def save_json(
                     })
                     aligned_sites.append({
                         'PosAA': pos0 + 1,  # reference location
-                        'PosNAs': [na.min_pos for na in seqcd],
+                        'PosNAs': [na.min_pos() for na in seqcd],
                         'LengthNA': nalen
                     })
                     if ins_fs_len:
@@ -222,7 +222,7 @@ def save_json(
                             'Position': pos0 + 1,
                             'GapLength': ins_fs_len,
                             'NucleicAcidsText':
-                            NAPosition.join_for_str(seqcd[-ins_fs_len:]),
+                            NAPosition.join_as_str(seqcd[-ins_fs_len:]),
                             'IsInsertion': True
                         })
                     elif del_fs_len:
