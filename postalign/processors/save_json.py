@@ -186,7 +186,7 @@ def save_json(
                     if len(refcd) < 3:
                         # partial matched reference, skip
                         continue
-                    nalen: int = sum(not na.is_gap() for na in seqcd)
+                    nalen: int = sum(not na.is_single_gap for na in seqcd)
                     if 0 < nalen < 3:
                         ins_fs_len = 0
                         del_fs_len = 3 - nalen

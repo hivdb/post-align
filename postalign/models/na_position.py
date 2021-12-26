@@ -243,7 +243,6 @@ class NAPosition:
         seq_flag = self._seq_flag + other._seq_flag
         return type(self)(seq_text, seq_pos, seq_flag)
 
-    # @cython.ccall
     def count(
         self: 'NAPosition',
         sub: Union[int, bytes],
@@ -252,7 +251,6 @@ class NAPosition:
     ) -> int:
         return self._seq_text.count(sub, start, end)
 
-    # @cython.ccall
     def remove_gaps(self: 'NAPosition') -> 'NAPosition':
         return type(self).init_from_triplets([
             (na, pos, flag)
@@ -262,7 +260,6 @@ class NAPosition:
             if na not in GAP_CHARS
         ])
 
-    # @cython.ccall
     def is_gap(self: 'NAPosition') -> bool:
         if self._is_gap is None:
             self._is_gap = False
