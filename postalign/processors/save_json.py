@@ -186,8 +186,6 @@ def save_json(
                     if len(refcd) < 3:
                         # partial matched reference, skip
                         continue
-                    # pos0 = (min(na.min_pos() for na in refcd
-                    #             if na.min_pos()) - refstart) // 3
                     nalen: int = sum(not na.is_gap() for na in seqcd)
                     if 0 < nalen < 3:
                         ins_fs_len = 0
@@ -212,9 +210,13 @@ def save_json(
                         'IsInsertion': len(refcd) > 5,
                         'IsDeletion': codon_text == '---'
                     })
+                    posnas: List[Optional[int]] = []
+                    for na in seqcd:
+                        min_pos: int = na.min_pos()
+                        posnas.append(min_pos if min_pos > -1 else None)
                     aligned_sites.append({
                         'PosAA': pos0 + 1,  # reference location
-                        'PosNAs': [na.min_pos() for na in seqcd],
+                        'PosNAs': posnas,
                         'LengthNA': nalen
                     })
                     if ins_fs_len:

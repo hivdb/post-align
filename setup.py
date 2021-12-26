@@ -16,6 +16,24 @@ extensions = [
     Extension(
         name='postalign.models.na_position',
         sources=['postalign/models/na_position.py']
+    ),
+    Extension(
+        name='postalign.processors.codon_alignment',
+        sources=[
+            'postalign/processors/codon_alignment.py'
+        ]
+    ),
+    Extension(
+        name='postalign.utils.group_by_codons',
+        sources=['postalign/utils/group_by_codons.py']
+    ),
+    Extension(
+        name='postalign.utils.codonutils',
+        sources=['postalign/utils/codonutils.py']
+    ),
+    Extension(
+        name='postalign.utils.blosum62',
+        sources=['postalign/utils/blosum62.py']
     )
 ]
 

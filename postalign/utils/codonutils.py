@@ -1,3 +1,4 @@
+import cython  # type: ignore
 from typing import Dict, List, Set, Sequence as PySequence
 from more_itertools import chunked
 from ..models import NAPosition
@@ -105,10 +106,14 @@ AMBIGUOUS_NAS: Dict[int, bytes] = {
 }
 
 
+@cython.ccall
+@cython.returns(bytes)
 def expand_ambiguous_na(na: int) -> bytes:
     return AMBIGUOUS_NAS.get(na, bytes([na]))
 
 
+@cython.ccall
+@cython.returns(bytes)
 def translate_codon(
     nas: PySequence[NAPosition],
     fs_as: bytes = b'X',
@@ -141,6 +146,8 @@ def translate_codon(
     return aas_bytes
 
 
+@cython.ccall
+@cython.returns(list)
 def translate_codons(
     nas: PySequence[NAPosition],
     fs_as: bytes = b'X',
@@ -154,10 +161,14 @@ def translate_codons(
     return all_aas
 
 
+@cython.ccall
+@cython.returns(list)
 def get_codons(aa: int) -> List[bytes]:
     return REVERSE_CODON_TABLE[aa]
 
 
+@cython.ccall
+@cython.returns(cython.bint)
 def compare_codon(
     base: bytes,
     target: bytes

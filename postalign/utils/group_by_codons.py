@@ -1,7 +1,10 @@
+import cython  # type: ignore
 from typing import Optional, Tuple, List
 from ..models import NAPosOrList, NAPosition
 
 
+@cython.ccall
+@cython.returns(tuple)
 def group_by_codons(
     refnas: NAPosOrList,
     seqnas: NAPosOrList
@@ -29,6 +32,8 @@ def group_by_codons(
     return refcodons, seqcodons
 
 
+@cython.ccall
+@cython.returns(list)
 def group_by_gene_codons(
     refnas: NAPosition,
     seqnas: NAPosition,

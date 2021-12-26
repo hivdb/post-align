@@ -1,6 +1,8 @@
+import cython  # type: ignore
+from typing import Dict
 from itertools import product
 
-BLOSUM62 = {
+BLOSUM62: Dict[bytes, int] = {
     b'AA': 4,
     b'AC': 0,
     b'AD': -2,
@@ -404,6 +406,7 @@ BLOSUM62 = {
 }
 
 
+@cython.ccall
 def blosum62_score(
     a: bytes,
     b: bytes,

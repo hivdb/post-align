@@ -138,9 +138,9 @@ class NAPosition:
         pos_start: int,
         pos_end: int
     ) -> Tuple[int, int]:
-        max_pos: Optional[int] = self.max_pos()
-        min_pos: Optional[int] = self.min_pos()
-        if max_pos is None or min_pos is None:
+        max_pos: int = self.max_pos()
+        min_pos: int = self.min_pos()
+        if max_pos < 0 or min_pos < 0:
             return 0, 0
         if pos_start > max_pos:
             idx_start = idx_end = self.pos2index(max_pos, 'last')
