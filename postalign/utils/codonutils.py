@@ -1,163 +1,184 @@
 import cython  # type: ignore
-from typing import Dict, List, Set, Sequence as PySequence
+from typing import Dict, List, Set, Tuple
+from itertools import product
 from more_itertools import chunked
 from ..models import NAPosition
 
-CODON_TABLE: Dict[bytes, bytes] = {
-    b'TTT': b'F',
-    b'TTC': b'F',
-    b'TTA': b'L',
-    b'TTG': b'L',
+GAP_NA: int = ord(b'-')
+GAP_CODON: Tuple[int, int, int] = (GAP_NA,) * 3
 
-    b'CTT': b'L',
-    b'CTC': b'L',
-    b'CTA': b'L',
-    b'CTG': b'L',
+CODON_TABLE: Dict[Tuple[int, ...], Tuple[int, ...]] = {
+    tuple(b'TTT'): tuple(b'F'),
+    tuple(b'TTC'): tuple(b'F'),
+    tuple(b'TTA'): tuple(b'L'),
+    tuple(b'TTG'): tuple(b'L'),
 
-    b'ATT': b'I',
-    b'ATC': b'I',
-    b'ATA': b'I',
-    b'ATG': b'M',
+    tuple(b'CTT'): tuple(b'L'),
+    tuple(b'CTC'): tuple(b'L'),
+    tuple(b'CTA'): tuple(b'L'),
+    tuple(b'CTG'): tuple(b'L'),
 
-    b'GTT': b'V',
-    b'GTC': b'V',
-    b'GTA': b'V',
-    b'GTG': b'V',
+    tuple(b'ATT'): tuple(b'I'),
+    tuple(b'ATC'): tuple(b'I'),
+    tuple(b'ATA'): tuple(b'I'),
+    tuple(b'ATG'): tuple(b'M'),
 
-    b'TCT': b'S',
-    b'TCC': b'S',
-    b'TCA': b'S',
-    b'TCG': b'S',
+    tuple(b'GTT'): tuple(b'V'),
+    tuple(b'GTC'): tuple(b'V'),
+    tuple(b'GTA'): tuple(b'V'),
+    tuple(b'GTG'): tuple(b'V'),
 
-    b'CCT': b'P',
-    b'CCC': b'P',
-    b'CCA': b'P',
-    b'CCG': b'P',
+    tuple(b'TCT'): tuple(b'S'),
+    tuple(b'TCC'): tuple(b'S'),
+    tuple(b'TCA'): tuple(b'S'),
+    tuple(b'TCG'): tuple(b'S'),
 
-    b'ACT': b'T',
-    b'ACC': b'T',
-    b'ACA': b'T',
-    b'ACG': b'T',
+    tuple(b'CCT'): tuple(b'P'),
+    tuple(b'CCC'): tuple(b'P'),
+    tuple(b'CCA'): tuple(b'P'),
+    tuple(b'CCG'): tuple(b'P'),
 
-    b'GCT': b'A',
-    b'GCC': b'A',
-    b'GCA': b'A',
-    b'GCG': b'A',
+    tuple(b'ACT'): tuple(b'T'),
+    tuple(b'ACC'): tuple(b'T'),
+    tuple(b'ACA'): tuple(b'T'),
+    tuple(b'ACG'): tuple(b'T'),
 
-    b'TAT': b'Y',
-    b'TAC': b'Y',
+    tuple(b'GCT'): tuple(b'A'),
+    tuple(b'GCC'): tuple(b'A'),
+    tuple(b'GCA'): tuple(b'A'),
+    tuple(b'GCG'): tuple(b'A'),
 
-    b'CAT': b'H',
-    b'CAC': b'H',
-    b'CAA': b'Q',
-    b'CAG': b'Q',
+    tuple(b'TAT'): tuple(b'Y'),
+    tuple(b'TAC'): tuple(b'Y'),
 
-    b'AAT': b'N',
-    b'AAC': b'N',
-    b'AAA': b'K',
-    b'AAG': b'K',
+    tuple(b'CAT'): tuple(b'H'),
+    tuple(b'CAC'): tuple(b'H'),
+    tuple(b'CAA'): tuple(b'Q'),
+    tuple(b'CAG'): tuple(b'Q'),
 
-    b'GAT': b'D',
-    b'GAC': b'D',
-    b'GAA': b'E',
-    b'GAG': b'E',
+    tuple(b'AAT'): tuple(b'N'),
+    tuple(b'AAC'): tuple(b'N'),
+    tuple(b'AAA'): tuple(b'K'),
+    tuple(b'AAG'): tuple(b'K'),
 
-    b'TGT': b'C',
-    b'TGC': b'C',
-    b'TGG': b'W',
+    tuple(b'GAT'): tuple(b'D'),
+    tuple(b'GAC'): tuple(b'D'),
+    tuple(b'GAA'): tuple(b'E'),
+    tuple(b'GAG'): tuple(b'E'),
 
-    b'CGT': b'R',
-    b'CGC': b'R',
-    b'CGA': b'R',
-    b'CGG': b'R',
+    tuple(b'TGT'): tuple(b'C'),
+    tuple(b'TGC'): tuple(b'C'),
+    tuple(b'TGG'): tuple(b'W'),
 
-    b'AGT': b'S',
-    b'AGC': b'S',
-    b'AGA': b'R',
-    b'AGG': b'R',
+    tuple(b'CGT'): tuple(b'R'),
+    tuple(b'CGC'): tuple(b'R'),
+    tuple(b'CGA'): tuple(b'R'),
+    tuple(b'CGG'): tuple(b'R'),
 
-    b'GGT': b'G',
-    b'GGC': b'G',
-    b'GGA': b'G',
-    b'GGG': b'G',
+    tuple(b'AGT'): tuple(b'S'),
+    tuple(b'AGC'): tuple(b'S'),
+    tuple(b'AGA'): tuple(b'R'),
+    tuple(b'AGG'): tuple(b'R'),
 
-    b'TAA': b'*',
-    b'TGA': b'*',
-    b'TAG': b'*',
+    tuple(b'GGT'): tuple(b'G'),
+    tuple(b'GGC'): tuple(b'G'),
+    tuple(b'GGA'): tuple(b'G'),
+    tuple(b'GGG'): tuple(b'G'),
+
+    tuple(b'TAA'): tuple(b'*'),
+    tuple(b'TGA'): tuple(b'*'),
+    tuple(b'TAG'): tuple(b'*'),
 }
 
 REVERSE_CODON_TABLE: Dict[int, List[bytes]] = {}
 for codon, aa in CODON_TABLE.items():
-    REVERSE_CODON_TABLE.setdefault(aa[0], []).append(codon)
+    REVERSE_CODON_TABLE.setdefault(aa[0], []).append(bytes(codon))
 
 
-AMBIGUOUS_NAS: Dict[int, bytes] = {
-    ord(b'W'): b'AT',
-    ord(b'S'): b'CG',
-    ord(b'M'): b'AC',
-    ord(b'K'): b'GT',
-    ord(b'R'): b'AG',
-    ord(b'Y'): b'CT',
-    ord(b'B'): b'CGT',
-    ord(b'D'): b'AGT',
-    ord(b'H'): b'ACT',
-    ord(b'V'): b'ACG',
-    ord(b'N'): b'ACGT'
+AMBIGUOUS_NAS: Dict[int, Tuple[int, ...]] = {
+    ord(b'W'): tuple(b'AT'),
+    ord(b'S'): tuple(b'CG'),
+    ord(b'M'): tuple(b'AC'),
+    ord(b'K'): tuple(b'GT'),
+    ord(b'R'): tuple(b'AG'),
+    ord(b'Y'): tuple(b'CT'),
+    ord(b'B'): tuple(b'CGT'),
+    ord(b'D'): tuple(b'AGT'),
+    ord(b'H'): tuple(b'ACT'),
+    ord(b'V'): tuple(b'ACG'),
+    ord(b'N'): tuple(b'ACGT')
 }
 
 
-@cython.ccall
-@cython.returns(bytes)
-def expand_ambiguous_na(na: int) -> bytes:
-    return AMBIGUOUS_NAS.get(na, bytes([na]))
+@cython.cfunc
+@cython.inline
+@cython.returns(tuple)
+def _translate_codon(
+    nas: Tuple[int, ...],
+    fs_as: Tuple[int],
+    del_as: Tuple[int],
+) -> Tuple[int, ...]:
+    if nas in CODON_TABLE:
+        return CODON_TABLE[nas]
+    len_nas = len(nas)
+    if del_as and len_nas == 3 and nas == GAP_CODON:
+        # codon is a in-frame deletion
+        return del_as
+    if fs_as and (len_nas < 3 or
+                  GAP_NA in nas):
+        # codon contains out-frame deletion
+        return fs_as
+
+    na: int
+    cand_nas: Tuple[int, ...]
+    aas: Set[int] = set()
+    unambi_nas: List[Tuple[int, ...]] = []
+    for na in nas:
+        if na in AMBIGUOUS_NAS:
+            unambi_nas.append(AMBIGUOUS_NAS[na])
+        else:
+            unambi_nas.append((na, ))
+    for cand_nas in product(*unambi_nas):
+        aas.add(CODON_TABLE[cand_nas][0])
+    aas_tuple: Tuple[int, ...] = tuple(sorted(aas))
+    CODON_TABLE[nas] = aas_tuple
+    return aas_tuple
 
 
 @cython.ccall
 @cython.returns(bytes)
 def translate_codon(
-    nas: PySequence[NAPosition],
+    nas: List[NAPosition],
     fs_as: bytes = b'X',
     del_as: bytes = b'-'
 ) -> bytes:
     nas = nas[:3]
-    if del_as and len(nas) == 3 and \
-            NAPosition.list_contains_all_gap(nas):
-        # codon is a in-frame deletion
-        return del_as
-    if fs_as and (len(nas) < 3 or
-                  NAPosition.list_contains_any_gap(nas)):
-        # codon contains out-frame deletion
-        return fs_as
     nas_bytes: bytes = NAPosition.join_as_bytes(nas)
-    nas_bytes = nas_bytes.replace(b'-', b'N')
-    if nas_bytes in CODON_TABLE:
-        return CODON_TABLE[nas_bytes]
-
-    na0: int
-    na1: int
-    na2: int
-    aas: Set[int] = set()
-    for na0 in AMBIGUOUS_NAS.get(nas_bytes[0], [nas_bytes[0]]):
-        for na1 in AMBIGUOUS_NAS.get(nas_bytes[1], [nas_bytes[1]]):
-            for na2 in AMBIGUOUS_NAS.get(nas_bytes[2], [nas_bytes[2]]):
-                aas.add(CODON_TABLE[bytes([na0, na1, na2])][0])
-    aas_bytes = bytes(sorted(aas))
-    CODON_TABLE[nas_bytes] = aas_bytes
-    return aas_bytes
+    aas: Tuple[int, ...] = _translate_codon(
+        tuple(nas_bytes),
+        tuple(fs_as),
+        tuple(del_as))
+    return bytes(aas)
 
 
 @cython.ccall
 @cython.returns(list)
 def translate_codons(
-    nas: PySequence[NAPosition],
+    nas: List[NAPosition],
     fs_as: bytes = b'X',
     del_as: bytes = b'-'
 ) -> List[bytes]:
-    codon: List[NAPosition]
+    nas_bytes: bytes = NAPosition.join_as_bytes(nas)
+    codon: List[int]
+    fs_as_tuple: Tuple[int, ...] = tuple(fs_as)
+    del_as_tuple: Tuple[int, ...] = tuple(del_as)
     all_aas: List[bytes] = []
-    for codon in chunked(nas, 3):
-        aas: bytes = translate_codon(codon, fs_as, fs_as)
-        all_aas.append(aas)
+    for codon in chunked(nas_bytes, 3):
+        aas: Tuple[int, ...] = _translate_codon(
+            tuple(codon),
+            fs_as_tuple,
+            del_as_tuple)
+        all_aas.append(bytes(aas))
     return all_aas
 
 

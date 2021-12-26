@@ -147,7 +147,7 @@ def paired_find_best_matches(
                                    scanstart=3, scanstep=3)
     elif gap_type == SEQGAP:
         seqnas = find_best_matches(seqnas, refnas, bp1_indices,
-                                   scanstart=0, scanstep=1)
+                                   scanstart=0, scanstep=3)
     return refnas, seqnas
 
 
@@ -354,14 +354,12 @@ def realign_gaps(
 
     refcodons, seqcodons = group_by_codons(refnas, seqnas)
 
-    # XXX: Do we need to move gaps to each codon's end?
-    # Since anyway we'll run gather_gaps
-    # refcodons = move_gap_to_codon_end(refcodons)
-    # seqcodons = move_gap_to_codon_end(seqcodons)
-
     refcodons, seqcodons = gather_gaps(refcodons, seqcodons, window_size)
     refcodons, seqcodons = adjust_gap_placement(
         refcodons, seqcodons, window_size)
+
+    # move gaps in seqcodons to codon ends
+    seqcodons = move_gap_to_codon_end(seqcodons)
 
     return list(chain(*refcodons)), list(chain(*seqcodons))
 
