@@ -1,4 +1,4 @@
-import json
+import orjson
 # import math
 import click
 from textwrap import indent
@@ -258,10 +258,10 @@ def save_json(
                         'Error': 'Sequence is not aligned'
                     })
 
-            text: str = json.dumps(payload, indent=num_indent)
+            text: bytes = orjson.dumps(payload, option=orjson.OPT_INDENT_2)
             if idx > 0:
                 yield ',\n'
-            yield indent(text, prefix=' ' * num_indent)
+            yield indent(str(text, 'ASCII'), prefix=' ' * num_indent)
         yield '\n]\n'
 
     return processor

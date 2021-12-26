@@ -7,8 +7,11 @@ from typing import (
 )
 from enum import IntFlag
 
-GAP_CHAR = ord(b'-')
-GAP_CHARS = tuple(b'-.')
+GAP_CHAR: int = ord(b'-')
+GAP_CHARS: Tuple[int, ...] = tuple(b'-.')
+
+FIRST: cython.int = 0
+LAST: cython.int = 1
 
 
 class NAFlag(IntFlag):
@@ -16,6 +19,8 @@ class NAFlag(IntFlag):
     NONE = 0
 
 
+@cython.ccall
+@cython.returns(list)
 def enumerate_seq_pos(seq_text: bytes) -> List[int]:
     na: int
     offset: int = 1
@@ -27,6 +32,63 @@ def enumerate_seq_pos(seq_text: bytes) -> List[int]:
             seq_pos.append(offset)
             offset += 1
     return seq_pos
+
+
+@cython.cfunc
+@cython.inline
+def _pos2index(
+    nas: List['NAPosition'],
+    pos: cython.int,
+    first: cython.int
+) -> cython.int:
+    idx: cython.int
+    len_nas: cython.int = len(nas)
+    if first == FIRST:
+        idx = 0
+        while idx < len_nas:
+            if nas[idx].pos == pos:
+                return idx
+            idx += 1
+    elif first == LAST:
+        idx = len_nas
+        while idx > -1:
+            idx -= 1
+            if nas[idx].pos == pos:
+                return idx
+    return -1
+
+
+@cython.ccall
+@cython.returns(tuple)
+def _posrange2indexrange(
+    nas: List['NAPosition'],
+    pos_start: int,
+    pos_end: int
+) -> Tuple[int, int]:
+    max_pos: int = NAPosition.max_pos(nas)
+    min_pos: int = NAPosition.min_pos(nas)
+    if max_pos < 0 or min_pos < 0:
+        return 0, 0
+    if pos_start > max_pos:
+        idx_start = idx_end = _pos2index(nas, max_pos, LAST)
+    elif pos_end < min_pos:
+        idx_start = idx_end = _pos2index(nas, min_pos, FIRST)
+    else:
+        pos_start = max(min_pos, pos_start)
+        pos_end = min(max_pos, pos_end)
+        for pos in range(pos_start, pos_end + 1):
+            try:
+                idx_start = _pos2index(nas, pos, FIRST)
+                break
+            except ValueError:
+                continue
+        for pos in range(pos_end, pos_start - 1, -1):
+            try:
+                idx_end = _pos2index(nas, pos, LAST) + 1
+                break
+            except ValueError:
+                continue
+    return idx_start, idx_end
 
 
 @cython.cclass
@@ -126,53 +188,7 @@ class NAPosition:
             flag & na.flag for na in nas
         ])
 
-    @staticmethod
-    def pos2index(nas: List['NAPosition'], pos: int, first: str) -> int:
-        idx: int
-        na: NAPosition
-        nas_with_idx: List[Tuple[int, NAPosition]] = list(enumerate(nas))
-        if first == 'last':
-            nas_with_idx = list(reversed(nas_with_idx))
-        elif first != 'first':
-            raise ValueError(
-                "invalid second parameter: must be 'first' or 'last'"
-            )
-        for idx, na in nas_with_idx:
-            if na.pos == pos:
-                return idx
-        return -1
-
-    @classmethod
-    def posrange2indexrange(
-        cls: Type['NAPosition'],
-        nas: List['NAPosition'],
-        pos_start: int,
-        pos_end: int
-    ) -> Tuple[int, int]:
-        max_pos: int = cls.max_pos(nas)
-        min_pos: int = cls.min_pos(nas)
-        if max_pos < 0 or min_pos < 0:
-            return 0, 0
-        if pos_start > max_pos:
-            idx_start = idx_end = cls.pos2index(nas, max_pos, 'last')
-        elif pos_end < min_pos:
-            idx_start = idx_end = cls.pos2index(nas, min_pos, 'first')
-        else:
-            pos_start = max(min_pos, pos_start)
-            pos_end = min(max_pos, pos_end)
-            for pos in range(pos_start, pos_end + 1):
-                try:
-                    idx_start = cls.pos2index(nas, pos, 'first')
-                    break
-                except ValueError:
-                    continue
-            for pos in range(pos_end, pos_start - 1, -1):
-                try:
-                    idx_end = cls.pos2index(nas, pos, 'last') + 1
-                    break
-                except ValueError:
-                    continue
-        return idx_start, idx_end
+    posrange2indexrange = _posrange2indexrange
 
     @staticmethod
     def count_gaps(nas: List['NAPosition']) -> int:

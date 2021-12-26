@@ -1,7 +1,5 @@
 import re
 from typing import (
-    Set,
-    Dict,
     Tuple,
     Type,
     TypeVar,
@@ -17,18 +15,13 @@ from .na_position import NAPosition
 from .aa_position import AAPosition
 
 from .modifier import ModifierLinkedList
+from ._sequence import sanitize_sequence, SKIP_VALIDATION
 
 GAP_CHARS = '.-'
 GAP_PATTERN = re.compile(r'^[.-]+$')
 ANY_GAP_PATTERN = re.compile(r'[.-]')
 
-SKIP_VALIDATION = object()
-
 Position = TypeVar('Position', NAPosition, AAPosition)
-
-VALID_NOTATIONS: Dict[Type[Union[NAPosition, AAPosition]], Set[int]] = {
-    NAPosition: set(b'ACGTUWSMKRYBDHVN.-')
-}
 
 
 class Sequence(Generic[Position]):
@@ -53,41 +46,9 @@ class Sequence(Generic[Position]):
     ) -> None:
         one: Position
 
-        if (
-            seqtype == AAPosition or
-            any(isinstance(one, AAPosition) for one in seqtext)
-        ):
-            raise NotImplementedError('Amino acid is not yet supported')
-
-        if (
-            seqtype != NAPosition and
-            not all(isinstance(one, NAPosition) for one in seqtext)
-        ):
-            raise ValueError(
-                "seqtext must be a list of NAPosition instances "
-                "when seqtype is 'NAPosition'"
-            )
-
         if skip_invalid is not SKIP_VALIDATION:
-            valid_notations: set[int] = VALID_NOTATIONS[seqtype]
-            valids: List[Position] = []
-            invalids: Set[int] = set()
-            for one in seqtext:
-                if one.notation in valid_notations:
-                    valids.append(one)
-                else:
-                    invalids.add(one.notation)
-            if invalids and skip_invalid:
-                seqtext = valids
-            elif invalids:
-                raise ValueError(
-                    'sequence {} contains invalid notation(s) ({})'
-                    'while skip_invalid=False'
-                    .format(
-                        header,
-                        str(bytes(sorted(invalids)), 'ASCII')
-                    )
-                )
+            seqtext = sanitize_sequence(seqtext, seqtype, header, skip_invalid)
+
         self.header = header
         self.description = description
         self.seqtext = seqtext

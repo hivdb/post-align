@@ -18,6 +18,10 @@ extensions = [
         sources=['postalign/models/na_position.py']
     ),
     Extension(
+        name='postalign.models._sequence',
+        sources=['postalign/models/_sequence.py']
+    ),
+    Extension(
         name='postalign.processors.codon_alignment',
         sources=[
             'postalign/processors/codon_alignment.py'

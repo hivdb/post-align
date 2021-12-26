@@ -15,6 +15,7 @@ more-itertools = "*"
 pafpy = "*"
 types-setuptools = "*"
 cython = "*"
+orjson = "*"
 
 [requires]
 python_version = "3.9"
