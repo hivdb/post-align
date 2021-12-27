@@ -30,14 +30,76 @@ CodonPair = Tuple[
 
 @cython.cfunc
 @cython.inline
-def find_first_gap(
-    nas: List[NAPosition],
-    start: int = 0
-) -> int:
+@cython.returns(tuple)
+def extend_codons_until_gap(
+    ref_codons: List[List[NAPosition]],
+    seq_codons: List[List[NAPosition]],
+    direction: int
+) -> Tuple[
+    List[List[NAPosition]],
+    List[List[NAPosition]],
+    int
+]:
+    if direction == LEFT:
+        ref_codons.reverse()
+        seq_codons.reverse()
     idx: int
-    for idx, na in enumerate(nas[start:]):
+    refcd: List[NAPosition]
+    seqcd: List[NAPosition]
+    endidx: int = len(ref_codons)
+    for idx, (refcd, seqcd) in enumerate(zip(ref_codons, seq_codons)):
+        broken: bool = False
+        for na in chain(refcd, seqcd):
+            if na.is_gap:
+                endidx = idx
+                broken = True
+                break
+        if broken:
+            break
+    ref_codons = ref_codons[:endidx]
+    seq_codons = seq_codons[:endidx]
+    if direction == LEFT:
+        ref_codons.reverse()
+        seq_codons.reverse()
+    return ref_codons, seq_codons, len(ref_codons)
+
+
+@cython.cfunc
+@cython.inline
+@cython.returns(list)
+def find_windows_with_gap(
+    refnas: List[NAPosition],
+    seqnas: List[NAPosition],
+    min_gap_distance: int
+) -> List[slice]:
+    refna: NAPosition
+    seqna: NAPosition
+    first_gap_idx: int = -1
+    last_gap_idx: int = -1
+    windows: List[slice] = []
+    for idx, (refna, seqna) in enumerate(zip(refnas, seqnas)):
+        if not refna.is_gap and not seqna.is_gap:
+            continue
+        if first_gap_idx == -1:
+            first_gap_idx = last_gap_idx = idx
+        elif idx - last_gap_idx > min_gap_distance:
+            windows.append(slice(first_gap_idx, last_gap_idx + 1))
+            first_gap_idx = last_gap_idx = idx
+        else:  # idx - first_gap_idx <= na_window_size
+            last_gap_idx = idx
+    if first_gap_idx > -1:
+        windows.append(slice(first_gap_idx, last_gap_idx + 1))
+    return windows
+
+
+@cython.cfunc
+@cython.inline
+def find_first_gap(nas: List[NAPosition]) -> int:
+    idx: int
+    na: NAPosition
+    for idx, na in enumerate(nas):
         if na.is_gap:
-            return start + idx
+            return idx
     return -1
 
 
@@ -79,8 +141,13 @@ def separate_gaps_from_nas(
     nas: List[NAPosition]
 ) -> Tuple[List[NAPosition], List[NAPosition]]:
     na: NAPosition
-    nongaps: List[NAPosition] = [na for na in nas if not na.is_gap]
-    gaps: List[NAPosition] = [na for na in nas if na.is_gap]
+    nongaps: List[NAPosition] = []
+    gaps: List[NAPosition] = []
+    for na in nas:
+        if na.is_gap:
+            gaps.append(na)
+        else:
+            nongaps.append(na)
     return nongaps, gaps
 
 
@@ -168,48 +235,13 @@ def codon_pairs_group_key(cdpair: Tuple[
 
 @cython.cfunc
 @cython.inline
-@cython.returns(tuple)
-def extend_codons_until_gap(
-    ref_codons: List[List[NAPosition]],
-    seq_codons: List[List[NAPosition]],
-    direction: int
-) -> Tuple[
-    List[List[NAPosition]],
-    List[List[NAPosition]],
-    int
-]:
-    if direction == LEFT:
-        ref_codons.reverse()
-        seq_codons.reverse()
-    idx: int
-    refcd: List[NAPosition]
-    seqcd: List[NAPosition]
-    endidx: int = len(ref_codons)
-    for idx, (refcd, seqcd) in enumerate(zip(ref_codons, seq_codons)):
-        broken: bool = False
-        for na in chain(refcd, seqcd):
-            if na.is_gap:
-                endidx = idx
-                broken = True
-                break
-        if broken:
-            break
-    ref_codons = ref_codons[:endidx]
-    seq_codons = seq_codons[:endidx]
-    if direction == LEFT:
-        ref_codons.reverse()
-        seq_codons.reverse()
-    return ref_codons, seq_codons, len(ref_codons)
-
-
-@cython.cfunc
-@cython.inline
 @cython.returns(list)
-def move_gaps_to_index(nas: List[NAPosition], index: int) -> List[NAPosition]:
+def move_gaps_to_center(nas: List[NAPosition]) -> List[NAPosition]:
     new_nas: List[NAPosition]
     gaps: List[NAPosition]
     new_nas, gaps = separate_gaps_from_nas(nas)
-    new_nas[index:index] = gaps
+    center_idx: int = len(new_nas) // 2
+    new_nas[center_idx:center_idx] = gaps
     return new_nas
 
 
@@ -217,54 +249,32 @@ def move_gaps_to_index(nas: List[NAPosition], index: int) -> List[NAPosition]:
 @cython.inline
 @cython.returns(tuple)
 def gather_gaps(
-    refcodons: List[List[NAPosition]],
-    seqcodons: List[List[NAPosition]],
-    window_size: int
+    refnas: List[NAPosition],
+    seqnas: List[NAPosition],
+    min_gap_distance: int
 ) -> Tuple[
-    List[List[NAPosition]],
-    List[List[NAPosition]]
+    List[NAPosition],
+    List[NAPosition]
 ]:
     """Gather gaps together according to window"""
-    pointer: int
     slicekey: slice
-    win_refcodons: List[List[NAPosition]]
-    win_seqcodons: List[List[NAPosition]]
     win_refnas: List[NAPosition]
     win_seqnas: List[NAPosition]
-    pointer_limit: int = len(refcodons) - window_size
-    for pointer in range(0, pointer_limit):
-        slicekey = slice(pointer, pointer + window_size)
-        win_refcodons = refcodons[slicekey]
-        win_seqcodons = seqcodons[slicekey]
-        win_refnas = list(chain(*win_refcodons))
-        win_seqnas = list(chain(*win_seqcodons))
-        gapidx: int = find_first_gap(win_refnas)
+    # reverse windows so the assignment won't change index
+    for slicekey in reversed(find_windows_with_gap(
+        refnas, seqnas, min_gap_distance
+    )):
+        win_refnas = refnas[slicekey]
+        win_seqnas = seqnas[slicekey]
+        win_refnas, win_seqnas = remove_redundant_gaps(win_refnas, win_seqnas)
 
-        if gapidx > -1:
-            # When gap(s) are found in refnas, first move all gaps in a window
-            # to the first gap position, for example:
-            # ref: AAA-CCCT--TT  => AAA---CCCTTT
-            win_refnas = move_gaps_to_index(win_refnas, gapidx)
+        win_refnas = move_gaps_to_center(win_refnas)
+        win_seqnas = move_gaps_to_center(win_seqnas)
 
-            # Then align gaps in seqnas with refnas, for example:
-            # ref: AAA---CCCTTT     AAA---CCCTTT
-            #                    =>
-            # seq: AAACCC---TTT     AAA---CCCTTT
-            win_seqnas = move_gaps_to_index(win_seqnas, gapidx)
-        else:
-            gapidx = find_first_gap(win_seqnas)
-            if gapidx > -1:
-                # When gap(s) are found in seqnas, move all gaps in a window
-                # to the first gap position like above did for refnas
-                win_seqnas = move_gaps_to_index(win_seqnas, gapidx)
+        refnas[slicekey] = win_refnas
+        seqnas[slicekey] = win_seqnas
 
-        win_refnas, win_seqnas = remove_matching_gaps(win_refnas, win_seqnas)
-        (win_refcodons,
-         win_seqcodons) = group_by_codons(win_refnas, win_seqnas)
-        refcodons[slicekey] = win_refcodons
-        seqcodons[slicekey] = win_seqcodons
-
-    return refcodons, seqcodons
+    return refnas, seqnas
 
 
 @cython.cfunc
@@ -347,14 +357,15 @@ def adjust_gap_placement(
 def realign_gaps(
     refnas: List[NAPosition],
     seqnas: List[NAPosition],
+    min_gap_distance: int,
     window_size: int
 ) -> Tuple[List[NAPosition], List[NAPosition]]:
     refcodons: List[List[NAPosition]]
     seqcodons: List[List[NAPosition]]
 
-    refcodons, seqcodons = group_by_codons(refnas, seqnas)
+    refnas, seqnas = gather_gaps(refnas, seqnas, min_gap_distance)
 
-    refcodons, seqcodons = gather_gaps(refcodons, seqcodons, window_size)
+    refcodons, seqcodons = group_by_codons(refnas, seqnas)
     refcodons, seqcodons = adjust_gap_placement(
         refcodons, seqcodons, window_size)
 
@@ -366,30 +377,47 @@ def realign_gaps(
 
 @cython.cfunc
 @cython.inline
+@cython.returns(list)
+def remove_n_gaps(nas: List[NAPosition], n_gaps: int) -> List[NAPosition]:
+    na: NAPosition
+    result: List[NAPosition] = []
+    for na in nas:
+        if na.is_gap and n_gaps > 0:
+            n_gaps -= 1
+        else:
+            result.append(na)
+    return result
+
+
+@cython.cfunc
+@cython.inline
 @cython.returns(tuple)
-def remove_matching_gaps(
+def remove_redundant_gaps(
     refnas: List[NAPosition],
     seqnas: List[NAPosition]
 ) -> Tuple[List[NAPosition], List[NAPosition]]:
-    """Remove matching gaps
+    """Remove redundant gaps
+
+    Gap should only exist in either sequence but not both
 
     Example of matched gaps:
 
+                vv
     TCAGCTGATGCA---CAA
-    TCAGCTGATGCAC---AA
-                 ^^
-                 These two are "matched gaps" and can be
-                 removed from pairwise alignment
+    TCAGGC-TGATGCAC-AA
+          ^        ^
+
+    Two of above gaps are redundant and should be removed
+    before the alignment get further processed
     """
-    refna: NAPosition
-    seqna: NAPosition
-    cleaned_refnas: List[NAPosition] = []
-    cleaned_seqnas: List[NAPosition] = []
-    for refna, seqna in zip(refnas, seqnas):
-        if not refna.is_gap or not seqna.is_gap:
-            cleaned_refnas.append(refna)
-            cleaned_seqnas.append(seqna)
-    return cleaned_refnas, cleaned_seqnas
+    n_gaps: int = min(
+        NAPosition.count_gaps(refnas),
+        NAPosition.count_gaps(seqnas)
+    )
+    if n_gaps:
+        refnas = remove_n_gaps(refnas, n_gaps)
+        seqnas = remove_n_gaps(seqnas, n_gaps)
+    return refnas, seqnas
 
 
 @cython.ccall
@@ -397,6 +425,7 @@ def remove_matching_gaps(
 def codon_align(
     refseq: Sequence,
     seq: Sequence,
+    min_gap_distance: int,
     window_size: int,
     refstart: int,
     refend: int,
@@ -421,13 +450,11 @@ def codon_align(
     refnas = refnas[idxstart:idxend]
     seqnas: List[NAPosition] = seq.seqtext[idxstart:idxend]
 
-    # step 2: remove matched gaps (due to MSA) from ref and seq
-    refnas, seqnas = remove_matching_gaps(refnas, seqnas)
+    # step 2: gather and re-align nearby gaps located in same window
+    refnas, seqnas = realign_gaps(
+        refnas, seqnas, min_gap_distance, window_size)
 
-    # step 3: gather and re-align nearby gaps located in same window
-    refnas, seqnas = realign_gaps(refnas, seqnas, window_size)
-
-    # last step: save "codon aligned" refseq and seq
+    # step 3: save "codon aligned" refseq and seq
     refseq = refseq.push_seqtext(
         refseq.seqtext[:idxstart] +
         refnas +
@@ -443,11 +470,22 @@ def codon_align(
 
 @cli.command('codon-alignment')
 @click.option(
+    '--min-gap-distance',
+    type=int,
+    default=30,
+    help=(
+        'Minimal NA gap distance of the output, gaps within the'
+        'minnimal distance will be gathered into a single gap'
+    ))
+@click.option(
     '--window-size',
     type=int,
-    default=5,
+    default=10,
     help=(
-        'Window size as # of codons for frameshift compensation'
+        'AA local window size for finding the local optimal '
+        'placement (BLOSUM62) for an insertion or deletion gap: '
+        'the larger the window the better the result and the slower '
+        'the process'
     ))
 @click.argument(
     'ref_start', type=int, default=1
@@ -456,6 +494,7 @@ def codon_align(
     'ref_end', type=int, default=-1
 )
 def codon_alignment(
+    min_gap_distance: int,
     window_size: int,
     ref_start: int,
     ref_end: int
@@ -503,6 +542,7 @@ def codon_alignment(
                 yield codon_align(
                     refseq,
                     seq,
+                    min_gap_distance,
                     window_size,
                     ref_start, my_ref_end
                 )
