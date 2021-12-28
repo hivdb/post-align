@@ -18,10 +18,16 @@ INPUT_FORMAT = ['MSA', 'PAF', 'MINIMAP2']
 
 def reference_callback(
     ctx: click.Context,
-    param: str,
+    param: click.Option,
     value: str
 ) -> Union[TextIO, str]:
     """Pre-process -r/--reference input"""
+    if not param.name:
+        raise click.BadParameter(
+            'Internal error (reference_callback:1)',
+            ctx,
+            param
+        )
     retvalue: Union[TextIO, str]
     alignment_format: str = ctx.params['alignment_format']
     try:
@@ -34,7 +40,7 @@ def reference_callback(
     except Exception:
         if alignment_format != 'MSA':
             raise click.BadOptionUsage(
-                param,
+                param.name,
                 '-r/--reference must provided as a file path '
                 'if alignment is {!r}'
                 .format(alignment_format),
@@ -45,15 +51,21 @@ def reference_callback(
 
 def seqs_prior_alignment_callback(
     ctx: click.Context,
-    param: str,
+    param: click.Option,
     value: Optional[TextIO]
 ) -> Optional[TextIO]:
     """Pre-process -p/--seqs-prior-alignment input"""
+    if not param.name:
+        raise click.BadParameter(
+            'Internal error (seqs_prior_alignment_callback:1)',
+            ctx,
+            param
+        )
     alignment_format: str = ctx.params['alignment_format']
     if alignment_format in ('PAF', ):
         if not value:
             raise click.BadOptionUsage(
-                param,
+                param.name,
                 '-p/--seqs-prior-alignment must provided '
                 'for alignment format {!r}'
                 .format(alignment_format))

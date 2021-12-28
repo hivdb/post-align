@@ -1,6 +1,7 @@
+import re
 import click
 import cython  # type: ignore
-from typing import Iterable, Tuple, List, Set, Optional
+from typing import Iterable, Tuple, List, Set, Optional, Dict
 from itertools import chain, groupby
 
 from ..cli import cli
@@ -18,6 +19,10 @@ SEQGAP: int = 0b10
 
 LEFT: int = 0b00
 RIGHT: int = 0b01
+
+GAP_PLACEMENT_SCORE_PATTERN: re.Pattern = re.compile(
+    r'^(\d+)(?:/(\d+))?(ins|del):(-?\d+)$'
+)
 
 CodonPair = Tuple[
     int,  # refpos0
@@ -158,8 +163,8 @@ def find_best_matches(
     mynas: List[NAPosition],
     othernas: List[NAPosition],
     bp1_indices: Set[int],
-    scanstart: int = 0,
-    scanstep: int = 1
+    gap_type: int,
+    gap_placement_score: Dict[Tuple[int, int], int]
 ) -> List[NAPosition]:
     idx: int
     score: Tuple[float, int]
@@ -167,12 +172,24 @@ def find_best_matches(
     test_mynas: List[NAPosition]
     orig_gapidx: int = find_first_gap(mynas)
     mynas, mygap = separate_gaps_from_nas(mynas)
+    gaplen: int = len(mygap)
     max_score: Optional[Tuple[float, int]] = None
     best_mynas: Optional[List[NAPosition]] = None
-    for idx in range(scanstart, len(mynas) + 1, scanstep):
+    scanstart: int = 3 if gap_type == REFGAP else 0
+    for idx in range(scanstart, len(mynas) + 1, 3):
+        napos: int
         test_mynas = mynas[::]
         test_mynas[idx:idx] = mygap
         score_val: float = calc_match_score(test_mynas, othernas)
+        if gap_type == REFGAP:
+            napos = mynas[idx - 1].pos
+        else:  # gap_type == SEQGAP
+            napos = othernas[idx].pos
+        if (napos, gaplen) in gap_placement_score:
+            score_val += gap_placement_score[(napos, gaplen)]
+        elif (napos, 0) in gap_placement_score:
+            score_val += gap_placement_score[(napos, 0)]
+
         if idx in bp1_indices:
             # reward gaps inserted between codons
             score = (score_val + 1, 2)
@@ -196,7 +213,8 @@ def find_best_matches(
 def paired_find_best_matches(
     refnas: List[NAPosition],
     seqnas: List[NAPosition],
-    gap_type: int
+    gap_type: int,
+    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
 ) -> Tuple[List[NAPosition], List[NAPosition]]:
     idx: int
     na: NAPosition
@@ -210,11 +228,15 @@ def paired_find_best_matches(
             bp1_indices.add(idx)
 
     if gap_type == REFGAP:
-        refnas = find_best_matches(refnas, seqnas, bp1_indices,
-                                   scanstart=3, scanstep=3)
+        refnas = find_best_matches(
+            refnas, seqnas, bp1_indices,
+            gap_type,
+            gap_placement_score[gap_type])
     elif gap_type == SEQGAP:
-        seqnas = find_best_matches(seqnas, refnas, bp1_indices,
-                                   scanstart=0, scanstep=3)
+        seqnas = find_best_matches(
+            seqnas, refnas, bp1_indices,
+            gap_type,
+            gap_placement_score[gap_type])
     return refnas, seqnas
 
 
@@ -283,7 +305,8 @@ def gather_gaps(
 def adjust_gap_placement(
     refcodons: List[List[NAPosition]],
     seqcodons: List[List[NAPosition]],
-    window_size: int
+    window_size: int,
+    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
 ) -> Tuple[List[List[NAPosition]], List[List[NAPosition]]]:
     """Adjust continuous refgap/seqgap placement"""
     start: int
@@ -341,8 +364,12 @@ def adjust_gap_placement(
 
         win_refnas = list(chain(*refcds))
         win_seqnas = list(chain(*seqcds))
-        win_refnas, win_seqnas = \
-            paired_find_best_matches(win_refnas, win_seqnas, gap_type)
+        win_refnas, win_seqnas = paired_find_best_matches(
+            win_refnas,
+            win_seqnas,
+            gap_type,
+            gap_placement_score
+        )
         (win_refcodons,
          win_seqcodons) = group_by_codons(win_refnas, win_seqnas)
         refcodons[start:end] = win_refcodons
@@ -358,7 +385,8 @@ def realign_gaps(
     refnas: List[NAPosition],
     seqnas: List[NAPosition],
     min_gap_distance: int,
-    window_size: int
+    window_size: int,
+    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
 ) -> Tuple[List[NAPosition], List[NAPosition]]:
     refcodons: List[List[NAPosition]]
     seqcodons: List[List[NAPosition]]
@@ -367,7 +395,11 @@ def realign_gaps(
 
     refcodons, seqcodons = group_by_codons(refnas, seqnas)
     refcodons, seqcodons = adjust_gap_placement(
-        refcodons, seqcodons, window_size)
+        refcodons,
+        seqcodons,
+        window_size,
+        gap_placement_score
+    )
 
     # move gaps in seqcodons to codon ends
     seqcodons = move_gap_to_codon_end(seqcodons)
@@ -427,6 +459,7 @@ def codon_align(
     seq: Sequence,
     min_gap_distance: int,
     window_size: int,
+    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
     refstart: int,
     refend: int,
     check_boundary: bool = True
@@ -452,7 +485,7 @@ def codon_align(
 
     # step 2: gather and re-align nearby gaps located in same window
     refnas, seqnas = realign_gaps(
-        refnas, seqnas, min_gap_distance, window_size)
+        refnas, seqnas, min_gap_distance, window_size, gap_placement_score)
 
     # step 3: save "codon aligned" refseq and seq
     refseq = refseq.push_seqtext(
@@ -466,6 +499,48 @@ def codon_align(
         seq.seqtext[idxend:],
         'codonalign({},{})'.format(refstart, refend), 0)
     return refseq, seq
+
+
+@cython.ccall
+@cython.returns(dict)
+def gap_placement_score_callback(
+    ctx: click.Context,
+    param: click.Option,
+    value: str
+) -> Dict[int, Dict[Tuple[int, int], int]]:
+    if not param.name:
+        raise click.BadParameter(
+            'Internal error (gap_placement_score_callback:1)',
+            ctx,
+            param
+        )
+    pos: str
+    pos_size: str
+    gap_type: str
+    gap_score: str
+    score_str: str
+    scores: Dict[int, Dict[Tuple[int, int], int]] = {
+        REFGAP: {},
+        SEQGAP: {}
+    }
+    for score_str in value.split(','):
+        if not score_str:
+            continue
+        match: Optional[re.Match] = \
+            GAP_PLACEMENT_SCORE_PATTERN.match(score_str)
+        if not match:
+            raise click.BadOptionUsage(
+                param.name,
+                '--gap-placement-score is provided with an '
+                'invalid value: {!r}'.format(score_str),
+                ctx
+            )
+        pos_start, pos_size, gap_type, gap_score = match.groups()
+        scores[REFGAP if gap_type == 'ins' else SEQGAP][(
+            int(pos_start),
+            int(pos_size) if pos_size else 0
+        )] = int(gap_score)
+    return scores
 
 
 @cli.command('codon-alignment')
@@ -487,6 +562,22 @@ def codon_align(
         'the larger the window the better the result and the slower '
         'the process'
     ))
+@click.option(
+    '--gap-placement-score',
+    type=str,
+    default='',
+    callback=gap_placement_score_callback,
+    help=(
+        'Bonus (positive number) or penalty (negative number) for gaps '
+        'appear at certain NA position (relative to the WHOLE ref seq) in the '
+        'ref seq (ins) or target seq (del). For example, 204ins:-5 is a -5 '
+        'penalty designate to a gap with any size gap in ref seq after NA '
+        'position 204 (AA position 68). 2041/12del:10 is a +10 score for a '
+        '12 NAs size (4 codons) gap in target seq at NA position 2041, '
+        'equivalent to deletion at 681, 682, 683 and 684 AA position. '
+        'Multiple scores can be delimited by commas, such as '
+        '204ins:-5,2041/12del:10.'
+    ))
 @click.argument(
     'ref_start', type=int, default=1
 )
@@ -496,6 +587,10 @@ def codon_align(
 def codon_alignment(
     min_gap_distance: int,
     window_size: int,
+    # For NASize, 0 means any size
+    #                        Indel         NAPos NASize Score
+    #                          v              v     v     v
+    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
     ref_start: int,
     ref_end: int
     # XXX: see https://github.com/cython/cython/issues/2753
@@ -544,6 +639,7 @@ def codon_alignment(
                     seq,
                     min_gap_distance,
                     window_size,
+                    gap_placement_score,
                     ref_start, my_ref_end
                 )
 
