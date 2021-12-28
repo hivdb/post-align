@@ -65,6 +65,8 @@ def _posrange2indexrange(
     pos_start: int,
     pos_end: int
 ) -> Tuple[int, int]:
+    idx_start: int
+    idx_end: int
     max_pos: int = NAPosition.max_pos(nas)
     min_pos: int = NAPosition.min_pos(nas)
     if max_pos < 0 or min_pos < 0:
@@ -77,17 +79,13 @@ def _posrange2indexrange(
         pos_start = max(min_pos, pos_start)
         pos_end = min(max_pos, pos_end)
         for pos in range(pos_start, pos_end + 1):
-            try:
-                idx_start = _pos2index(nas, pos, FIRST)
+            idx_start = _pos2index(nas, pos, FIRST)
+            if idx_start > -1:
                 break
-            except ValueError:
-                continue
         for pos in range(pos_end, pos_start - 1, -1):
-            try:
-                idx_end = _pos2index(nas, pos, LAST) + 1
+            idx_end = _pos2index(nas, pos, LAST) + 1
+            if idx_end > -1:
                 break
-            except ValueError:
-                continue
     return idx_start, idx_end
 
 

@@ -1,7 +1,7 @@
-from operator import attrgetter
+from operator import itemgetter
 from collections import defaultdict
 from pafpy import PafRecord, Strand  # type: ignore
-from typing import Type, Iterable, TextIO, List, Dict, Optional
+from typing import Type, Iterable, TextIO, List, Dict, Optional, Tuple, Set
 
 from ..models import Sequence, Position, RefSeqPair
 from ..utils.cigar import CIGAR
@@ -16,6 +16,11 @@ def load(
     seqtype: Type[Position]
 ) -> Iterable[RefSeqPair]:
     seq: Sequence
+    ref_start: int
+    ref_end: int
+    seq_start: int
+    seq_end: int
+    cigar_text: str
     refseq: Sequence = next(fasta.load(reference, seqtype, remove_gaps=True))
     seqs: Iterable[Sequence] = fasta.load(
         seqs_prior_alignment, seqtype, remove_gaps=True)
@@ -26,13 +31,26 @@ def load(
         for pafstr in pafstr_iter
         if pafstr
     )
-    paf_lookup: Dict[str, List[PafRecord]] = defaultdict(list)
+    paf_lookup: Dict[
+        str,
+        Set[Tuple[int, int, int, int, str]]
+    ] = defaultdict(set)
     for pafrec in pafrec_iter:
-        paf_lookup[pafrec.qname].append(pafrec)
+        if pafrec.strand == Strand.Reverse:
+            continue
+        paf_lookup[pafrec.qname].add((
+            pafrec.tstart,
+            pafrec.tend,
+            pafrec.qstart,
+            pafrec.qend,
+            pafrec.tags['cg'].value
+        ))
 
     for seq in seqs:
         try:
-            pafs: List[PafRecord] = paf_lookup[seq.header]
+            pafs: Set[
+                Tuple[int, int, int, int, str]
+            ] = paf_lookup[seq.header]
         except KeyError:
             # alignment for sequence is not found
             yield (
@@ -48,7 +66,7 @@ def load(
                 )
             )
             continue
-        if not pafs or any(paf.strand == Strand.Reverse for paf in pafs):
+        if not pafs:
             # skip reverse strand alignment
             yield (
                 refseq.push_seqtext(
@@ -69,18 +87,16 @@ def load(
         prev_seq_start: Optional[int] = None
         ref_paf_params: List[str] = []
         seq_paf_params: List[str] = []
-        for paf in sorted(pafs, key=attrgetter('tstart'), reverse=True):
+        for ref_start, ref_end, seq_start, seq_end, cigar_text in \
+                sorted(pafs, key=itemgetter(0), reverse=True):
             # scan PAF from end to begining
             reftext: List[Position] = refseq.seqtext
             seqtext: List[Position] = seq.seqtext
 
-            ref_start: int = paf.tstart
-            ref_end: int = paf.tend
-            seq_start: int = paf.qstart
-            seq_end: int = paf.qend
-            cigar_text: str = paf.tags['cg'].value
-            ref_paf_params.extend([str(ref_start), str(ref_end), cigar_text])
-            seq_paf_params.extend([str(seq_start), str(seq_end), cigar_text])
+            ref_paf_params.append(
+                '{},{},{}'.format(ref_start, ref_end, cigar_text))
+            seq_paf_params.append(
+                '{},{},{}'.format(seq_start, seq_end, cigar_text))
 
             # multiple partial alignments; fill the gap with unaligned part
             if prev_ref_start is not None and prev_seq_start is not None:
@@ -106,12 +122,16 @@ def load(
         yield (
             refseq.push_seqtext(
                 final_reftext,
-                modtext='paf({})'.format(','.join(ref_paf_params)),
+                modtext='paf({})'.format(
+                    ';'.join(ref_paf_params)
+                ),
                 start_offset=ref_start
             ),
             seq.push_seqtext(
                 final_seqtext,
-                modtext='paf({})'.format(','.join(seq_paf_params)),
+                modtext='paf({})'.format(
+                    ';'.join(seq_paf_params)
+                ),
                 start_offset=seq_start
             )
         )

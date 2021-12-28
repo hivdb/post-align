@@ -14,6 +14,10 @@ _version_re: re.Pattern = re.compile(r'VERSION\s+=\s+(.*)')
 
 extensions = [
     Extension(
+        name='postalign.utils.cigar',
+        sources=['postalign/utils/cigar.py']
+    ),
+    Extension(
         name='postalign.models.na_position',
         sources=['postalign/models/na_position.py']
     ),

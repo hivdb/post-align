@@ -4,38 +4,31 @@ requirements.txt: Pipfile.lock
 
 build-docker-builder: requirements.txt
 	@docker pull ubuntu:18.04
-	@docker build . --no-cache -t hivdb/post-align-builder:latest
+	# @docker build . --no-cache -t hivdb/post-align-builder:latest
+	@docker build . -t hivdb/post-align-builder:latest
 
 push-docker-builder: build-docker-builder
 	@docker push hivdb/post-align-builder:latest
 
-dist/linux-amd64: $(shell find postalign -type f -path "*.py" | sed 's#\([| ]\)#\\\1#g')
-	@rm -rf dist/linux-amd64
-	@mkdir -p dist/linux-amd64
+inspect-builder:
 	@docker run \
-		--mount type=bind,source=$(PWD)/postalign,target=/app/postalign \
-		--mount type=bind,source=$(PWD)/dist/linux-amd64,target=/app/dist \
+		--mount type=bind,source=$(PWD),target=/app/post-align \
 		--workdir /app --rm -it \
 		hivdb/post-align-builder:latest \
-		pyinstaller postalign/entry.py -n postalign
+		bash
 
-dist/darwin-amd64: $(shell find postalign -type f -path "*.py" | sed 's#\([| ]\)#\\\1#g')
-	@rm -rf dist/darwin-amd64
-	@test "$(shell uname)" = "Darwin" && \
-		pipenv run pyinstaller postalign/entry.py -n postalign --distpath ./dist/darwin-amd64
-	@rm ./postalign.spec
+dist/linux-amd64: $(shell find postalign -type f -path "*.py" | sed 's#\([| ]\)#\\\1#g')
+	@docker run \
+		--mount type=bind,source=$(PWD),target=/app/post-align \
+		--workdir /app --rm -it \
+		hivdb/post-align-builder:latest \
+		/build.sh
 
 dist/postalign_linux-amd64.tar.gz: dist/linux-amd64 
 	@cd dist/linux-amd64 && \
-		rm -f postalign_linux-amd64.tar.gz && \
-		tar zcf postalign_linux-amd64.tar.gz postalign && \
-		mv postalign_linux-amd64.tar.gz ..
-
-dist/postalign_darwin-amd64.tar.gz: dist/darwin-amd64
-	@cd dist/darwin-amd64 && \
-		rm -f postalign_darwin-amd64.tar.gz && \
-		tar zcf postalign_darwin-amd64.tar.gz postalign && \
-		mv postalign_darwin-amd64.tar.gz ..
+		rm -f mpostalign_linux-amd64.tar.gz && \
+		tar zcf mpostalign_linux-amd64.tar.gz mpostalign && \
+		mv mpostalign_linux-amd64.tar.gz ..
 
 dist: dist/postalign_linux-amd64.tar.gz
 build: dist
