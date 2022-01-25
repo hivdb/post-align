@@ -503,17 +503,9 @@ def codon_align(
 
 @cython.ccall
 @cython.returns(dict)
-def gap_placement_score_callback(
-    ctx: click.Context,
-    param: click.Option,
-    value: str
-) -> Dict[int, Dict[Tuple[int, int], int]]:
-    if not param.name:
-        raise click.BadParameter(
-            'Internal error (gap_placement_score_callback:1)',
-            ctx,
-            param
-        )
+def parse_gap_placement_score(value: str) -> Dict[
+    int, Dict[Tuple[int, int], int]
+]:
     pos: str
     pos_size: str
     gap_type: str
@@ -529,11 +521,9 @@ def gap_placement_score_callback(
         match: Optional[re.Match] = \
             GAP_PLACEMENT_SCORE_PATTERN.match(score_str)
         if not match:
-            raise click.BadOptionUsage(
-                param.name,
-                '--gap-placement-score is provided with an '
-                'invalid value: {!r}'.format(score_str),
-                ctx
+            raise ValueError(
+                'parse_gap_placement_score() is provided with an '
+                'invalid argument value: {!r}'.format(score_str)
             )
         pos_start, pos_size, gap_type, gap_score = match.groups()
         scores[REFGAP if gap_type == 'ins' else SEQGAP][(
@@ -541,6 +531,29 @@ def gap_placement_score_callback(
             int(pos_size) if pos_size else 0
         )] = int(gap_score)
     return scores
+
+
+@cython.ccall
+@cython.returns(dict)
+def gap_placement_score_callback(
+    ctx: click.Context,
+    param: click.Option,
+    value: str
+) -> Dict[int, Dict[Tuple[int, int], int]]:
+    if not param.name:
+        raise click.BadParameter(
+            'Internal error (gap_placement_score_callback:1)',
+            ctx,
+            param
+        )
+    try:
+        return parse_gap_placement_score(value)
+    except ValueError as exp:
+        raise click.BadOptionUsage(
+            param.name,
+            str(exp),
+            ctx
+        )
 
 
 @cli.command('codon-alignment')
