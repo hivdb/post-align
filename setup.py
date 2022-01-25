@@ -83,6 +83,7 @@ if __name__ == '__main__':
             'postalign/parsers', 'postalign/processors',
             'postalign/utils'
         ],
+        package_data={"postalign": ["py.typed"]},
         install_requires=req('requirements.txt'),
         ext_modules=cythonize(
             extensions,
