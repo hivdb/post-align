@@ -482,6 +482,9 @@ def codon_align(
     # step 1: apply reading frame
     refnas = refnas[idxstart:idxend]
     seqnas: List[NAPosition] = seq.seqtext[idxstart:idxend]
+    if not NAPosition.any_has_gap(refnas) and \
+            not NAPosition.any_has_gap(seqnas):
+        return refseq, seq
 
     # step 2: gather and re-align nearby gaps located in same window
     refnas, seqnas = realign_gaps(
