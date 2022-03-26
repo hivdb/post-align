@@ -36,8 +36,12 @@ def _get_alignment(
     if len(aligned_refseq) != len(aligned_seq):
         raise ValueError(
             'Unmatched alignment length: {!r} and {!r}'
-            .format(aligned_refseq, aligned_seq)
+            .format(
+                seqtype.as_str(aligned_refseq),
+                seqtype.as_str(aligned_seq)
+            )
         )
+
     return aligned_refseq, aligned_seq
 
 

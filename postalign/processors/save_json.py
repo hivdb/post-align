@@ -153,7 +153,7 @@ def save_json(
                 #     refend = None
 
             payload: Payload = {
-                'Name': seq.headerdesc,
+                'Name': seq.description,
                 'Modifiers': [[str(mod) for mod in mods]
                               for _, mods in seq.modifiers],
                 'GeneReports': []

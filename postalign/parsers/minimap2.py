@@ -32,7 +32,8 @@ def load(
         seqpath = tempdir / 'query.fa'
         with seqpath.open('w') as fp:
             for seq in fasta.load(fastafp, seqtype, remove_gaps=True):
-                fp.write('>{}\n{}\n'.format(
+                fp.write('>{} {}\n{}\n'.format(
+                    seq.seqid,
                     seq.headerdesc,
                     seq.seqtext_as_str
                 ))

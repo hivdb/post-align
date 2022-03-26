@@ -50,7 +50,7 @@ def load(
         try:
             pafs: Set[
                 Tuple[int, int, int, int, str]
-            ] = paf_lookup[seq.header]
+            ] = paf_lookup[str(seq.seqid)]
         except KeyError:
             # alignment for sequence is not found
             yield (
