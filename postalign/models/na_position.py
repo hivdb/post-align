@@ -76,8 +76,8 @@ def _posrange2indexrange(
     elif pos_end < min_pos:
         idx_start = idx_end = _pos2index(nas, min_pos, FIRST)
     else:
-        pos_start = max(min_pos, pos_start)
-        pos_end = min(max_pos, pos_end)
+        pos_start = min_pos if min_pos > pos_start else pos_start
+        pos_end = max_pos if max_pos < pos_end else pos_end
         for pos in range(pos_start, pos_end + 1):
             idx_start = _pos2index(nas, pos, FIRST)
             if idx_start > -1:
@@ -164,6 +164,23 @@ class NAPosition:
         for na in reversed(nas):
             if na.pos > 0:
                 return na.pos
+        return -1
+
+    @staticmethod
+    def min_nongap_index(nas: List['NAPosition']) -> int:
+        na: NAPosition
+        for idx, na in enumerate(nas):
+            if na.pos > 0:
+                return idx
+        return -1
+
+    @staticmethod
+    def max_nongap_index(nas: List['NAPosition']) -> int:
+        na: NAPosition
+        length = len(nas)
+        for idx, na in enumerate(reversed(nas)):
+            if na.pos > 0:
+                return length - 1 - idx
         return -1
 
     @staticmethod

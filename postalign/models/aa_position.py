@@ -37,3 +37,19 @@ class AAPosition:
         nas: List['AAPosition']
     ) -> str:
         raise NotImplementedError('Amino acid sequence is not yet supported')
+
+    @staticmethod
+    def min_pos(nas: List['AAPosition']) -> int:
+        raise NotImplementedError('Amino acid sequence is not yet supported')
+
+    @staticmethod
+    def max_pos(nas: List['AAPosition']) -> int:
+        raise NotImplementedError('Amino acid sequence is not yet supported')
+
+    @staticmethod
+    def min_nongap_index(nas: List['AAPosition']) -> int:
+        raise NotImplementedError('Amino acid sequence is not yet supported')
+
+    @staticmethod
+    def max_nongap_index(nas: List['AAPosition']) -> int:
+        raise NotImplementedError('Amino acid sequence is not yet supported')

@@ -460,11 +460,12 @@ def codon_align(
     min_gap_distance: int,
     window_size: int,
     gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
-    refstart: int,
-    refend: int,
+    ref_start: int,
+    ref_end: int,
     check_boundary: bool = True
 ) -> RefSeqPair:
     refnas: List[NAPosition] = refseq.seqtext
+    seqnas: List[NAPosition] = seq.seqtext
     if check_boundary and (refnas[0].is_gap or refnas[-1].is_gap):
         raise click.ClickException(
             'Unable to perform codon-alignment without the alignments '
@@ -472,16 +473,34 @@ def codon_align(
             'the alignments by command "trim-by-ref".'
         )
 
-    idxstart: int
-    idxend: int
-    idxstart, idxend = NAPosition.posrange2indexrange(refnas, refstart, refend)
-    if idxstart == idxend:
+    seq_idx_start: int = NAPosition.min_nongap_index(seqnas)
+    seq_idx_end: int = NAPosition.max_nongap_index(seqnas)
+
+    ref_idx_start, ref_idx_end = (
+        NAPosition.posrange2indexrange(refnas, ref_start, ref_end)
+    )
+
+    # Determine the application boundary for
+    # 1) follow user-specific reference boundary (ref_start, ref_end), and
+    # 2) avoid extending codon-alignment out of query sequence
+    #    boundary (seq_start, seq_end)
+    idx_start: int = (
+        ref_idx_start
+        if ref_idx_start > seq_idx_start
+        else seq_idx_start
+    )
+    idx_end: int = (
+        ref_idx_end
+        if ref_idx_end < seq_idx_end
+        else seq_idx_end
+    )
+    if idx_start == idx_end:
         # nothing to be codon aligned
         return refseq, seq
 
     # step 1: apply reading frame
-    refnas = refnas[idxstart:idxend]
-    seqnas: List[NAPosition] = seq.seqtext[idxstart:idxend]
+    refnas = refnas[idx_start:idx_end]
+    seqnas = seqnas[idx_start:idx_end]
     if not NAPosition.any_has_gap(refnas) and \
             not NAPosition.any_has_gap(seqnas):
         return refseq, seq
@@ -492,15 +511,15 @@ def codon_align(
 
     # step 3: save "codon aligned" refseq and seq
     refseq = refseq.push_seqtext(
-        refseq.seqtext[:idxstart] +
+        refseq.seqtext[:idx_start] +
         refnas +
-        refseq.seqtext[idxend:],
-        'codonalign({},{})'.format(refstart, refend), 0)
+        refseq.seqtext[idx_end:],
+        'codonalign({},{})'.format(ref_start, ref_end), 0)
     seq = seq.push_seqtext(
-        seq.seqtext[:idxstart] +
+        seq.seqtext[:idx_start] +
         seqnas +
-        seq.seqtext[idxend:],
-        'codonalign({},{})'.format(refstart, refend), 0)
+        seq.seqtext[idx_end:],
+        'codonalign({},{})'.format(ref_start, ref_end), 0)
     return refseq, seq
 
 
