@@ -203,11 +203,14 @@ def process_pipeline(
         iterator = paf.load(input_alignment, seqs_prior_alignment,
                             reference, seqtype)
     elif alignment_format == 'MINIMAP2':
+        minimap2_execute = ['minimap2']
+        if minimap2_opts:
+            minimap2_execute.extend(minimap2_opts.split())
         iterator = minimap2.load(
             input_alignment,
             reference,
             seqtype,
-            minimap2_execute=['minimap2', *minimap2_opts.split()]
+            minimap2_execute=minimap2_execute
         )
     else:
         raise click.ClickException(
