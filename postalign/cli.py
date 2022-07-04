@@ -123,6 +123,12 @@ def seqs_prior_alignment_callback(
     '--enable-profile/--disable-profile',
     default=False,
     help='Enable cProfile')
+@click.option(
+    '--minimap2-opts',
+    type=str,
+    help=(
+        'Options to be passed to minimap2 command (when -f is MINIMAP2)'
+    ))
 def cli(
     input_alignment: TextIO,
     seqs_prior_alignment: Optional[TextIO],
@@ -131,7 +137,8 @@ def cli(
     reference: Union[TextIO, str],
     nucleotides: bool,
     verbose: bool,
-    enable_profile: bool
+    enable_profile: bool,
+    minimap2_opts: str
 ) -> None:
     pass
 
@@ -177,7 +184,8 @@ def process_pipeline(
     reference: Union[TextIO, str],
     nucleotides: bool,
     verbose: bool,
-    enable_profile: bool
+    enable_profile: bool,
+    minimap2_opts: str
 ) -> None:
     seqtype: Type[NAPosition] = NAPosition
     iterator: Iterable[RefSeqPair]
@@ -195,7 +203,12 @@ def process_pipeline(
         iterator = paf.load(input_alignment, seqs_prior_alignment,
                             reference, seqtype)
     elif alignment_format == 'MINIMAP2':
-        iterator = minimap2.load(input_alignment, reference, seqtype)
+        iterator = minimap2.load(
+            input_alignment,
+            reference,
+            seqtype,
+            minimap2_execute=['minimap2', *minimap2_opts.split()]
+        )
     else:
         raise click.ClickException(
             'Unsupport alignment format: {}'.format(alignment_format)
