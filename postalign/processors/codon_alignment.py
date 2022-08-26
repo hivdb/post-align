@@ -480,15 +480,18 @@ def codon_align(
         NAPosition.posrange2indexrange(refnas, ref_start, ref_end)
     )
 
-    # Determine the application boundary for
+    # Determine the application boundary
     # 1) follow user-specific reference boundary (ref_start, ref_end), and
     # 2) avoid extending codon-alignment out of query sequence
     #    boundary (seq_start, seq_end)
+    # 3) ensure ref_idx_start is at the begining of codon
     idx_start: int = (
         ref_idx_start
         if ref_idx_start > seq_idx_start
         else seq_idx_start
     )
+    while (refnas[idx_start].pos - ref_start) % 3 > 0:
+        idx_start += 1
     idx_end: int = (
         ref_idx_end
         if ref_idx_end < seq_idx_end
