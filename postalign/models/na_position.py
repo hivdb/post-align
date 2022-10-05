@@ -167,20 +167,37 @@ class NAPosition:
         return -1
 
     @staticmethod
-    def min_nongap_index(nas: List['NAPosition']) -> int:
+    def min_nongap_index(
+        nas: List['NAPosition'],
+        start: int = -1,
+        stop: int = -1
+    ) -> int:
         na: NAPosition
         for idx, na in enumerate(nas):
+            if start > -1 and idx < start:
+                continue
+            if stop > -1 and idx >= stop:
+                break
             if na.pos > 0:
                 return idx
         return -1
 
     @staticmethod
-    def max_nongap_index(nas: List['NAPosition']) -> int:
+    def max_nongap_index(
+        nas: List['NAPosition'],
+        start: int = -1,
+        stop: int = -1
+    ) -> int:
         na: NAPosition
         length = len(nas)
-        for idx, na in enumerate(reversed(nas)):
+        for revidx, na in enumerate(reversed(nas)):
+            idx = length - 1 - revidx
+            if start > -1 and idx < start:
+                break
+            if stop > -1 and idx >= stop:
+                continue
             if na.pos > 0:
-                return length - 1 - idx
+                return idx
         return -1
 
     @staticmethod

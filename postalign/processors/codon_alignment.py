@@ -461,20 +461,13 @@ def codon_align(
     window_size: int,
     gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
     ref_start: int,
-    ref_end: int,
-    check_boundary: bool = True
+    ref_end: int
 ) -> RefSeqPair:
     refnas: List[NAPosition] = refseq.seqtext
     seqnas: List[NAPosition] = seq.seqtext
-    if check_boundary and (refnas[0].is_gap or refnas[-1].is_gap):
-        raise click.ClickException(
-            'Unable to perform codon-alignment without the alignments '
-            'being trimmed properly. Can be solved by pre-processing '
-            'the alignments by command "trim-by-ref".'
-        )
 
     seq_idx_start: int = NAPosition.min_nongap_index(seqnas)
-    seq_idx_end: int = NAPosition.max_nongap_index(seqnas)
+    seq_idx_end: int = NAPosition.max_nongap_index(seqnas) + 1
 
     ref_idx_start, ref_idx_end = (
         NAPosition.posrange2indexrange(refnas, ref_start, ref_end)
@@ -490,13 +483,19 @@ def codon_align(
         if ref_idx_start > seq_idx_start
         else seq_idx_start
     )
-    while (refnas[idx_start].pos - ref_start) % 3 > 0:
-        idx_start += 1
+
+    while True:
+        test_idx_start = NAPosition.min_nongap_index(refnas, idx_start)
+        if (refnas[test_idx_start].pos - ref_start) % 3 == 0:
+            break
+        idx_start = test_idx_start + 1
+
     idx_end: int = (
         ref_idx_end
         if ref_idx_end < seq_idx_end
         else seq_idx_end
     )
+
     if idx_start == idx_end:
         # nothing to be codon aligned
         return refseq, seq
@@ -572,7 +571,10 @@ def gap_placement_score_callback(
             param
         )
     try:
-        return parse_gap_placement_score(value)
+        result: Dict[
+            int, Dict[Tuple[int, int], int]
+        ] = parse_gap_placement_score(value)
+        return result
     except ValueError as exp:
         raise click.BadOptionUsage(
             param.name,

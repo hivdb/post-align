@@ -1,12 +1,52 @@
 from operator import itemgetter
 from collections import defaultdict
 from pafpy import PafRecord, Strand  # type: ignore
-from typing import Type, Iterable, TextIO, List, Dict, Optional, Tuple, Set
+from typing import Type, Iterable, TextIO, List, Dict, Tuple, Set
 
 from ..models import Sequence, Position, RefSeqPair
 from ..utils.cigar import CIGAR
 
 from . import fasta
+
+
+def insert_unaligned_region(
+    reftext: List[Position],
+    seqtext: List[Position],
+    orig_seqtext: List[Position],
+    seqtype: Type[Position],
+    align1_ref_end: int,
+    align1_seq_end: int,
+    align2_ref_start: int,
+    align2_seq_start: int
+) -> None:
+    """populate unaligned region into reftext & seqtext
+
+    For example, seq has NAs "ABC" not aligned to ref "DEFG" since
+    they are too different. The three unaligned NAs are added as below:
+
+    reftext: ...<ALIGNMENT_1>...DEF---G...<ALIGNMENT_2>...
+    seqtext: ...<ALIGNMENT_1>...---ABC-...<ALIGNMENT_2>...
+    """
+
+    unaligned_ref_size: int = align2_ref_start - align1_seq_end
+    unaligned_seq_size: int = align2_seq_start - align1_seq_end
+    min_unaligned_size: int = min(unaligned_ref_size, unaligned_seq_size)
+
+    if unaligned_ref_size == 0 and unaligned_seq_size == 0:
+        return
+
+    reftext[
+        align1_ref_end + min_unaligned_size:
+        align1_ref_end + min_unaligned_size
+    ] = seqtype.init_gaps(unaligned_seq_size)
+
+    seqtext[
+        align1_ref_end + min_unaligned_size:
+        align1_ref_end + min_unaligned_size
+    ] = orig_seqtext[
+        align1_seq_end:
+        align1_seq_end + unaligned_seq_size
+    ]
 
 
 def load(
@@ -83,8 +123,8 @@ def load(
             continue
         final_reftext: List[Position] = refseq.seqtext[:]
         final_seqtext: List[Position] = seqtype.init_gaps(len(final_reftext))
-        prev_ref_start: Optional[int] = None
-        prev_seq_start: Optional[int] = None
+        prev_ref_start: int = len(refseq)
+        prev_seq_start: int = len(seq)
         ref_paf_params: List[str] = []
         seq_paf_params: List[str] = []
         for ref_start, ref_end, seq_start, seq_end, cigar_text in \
@@ -98,19 +138,17 @@ def load(
             seq_paf_params.append(
                 '{},{},{}'.format(seq_start, seq_end, cigar_text))
 
-            # multiple partial alignments; fill the gap with unaligned part
-            if prev_ref_start is not None and prev_seq_start is not None:
-                unaligned_size: int = min(
-                    prev_seq_start - seq_end + 1,
-                    prev_ref_start - ref_end + 1
-                )
-                final_seqtext[
-                    ref_end:
-                    ref_end + unaligned_size
-                ] = seqtext[
-                    seq_end:
-                    seq_end + unaligned_size
-                ]
+            insert_unaligned_region(
+                final_reftext,
+                final_seqtext,
+                seqtext,
+                seqtype,
+                ref_end,
+                seq_end,
+                prev_ref_start,
+                prev_seq_start
+            )
+
             prev_ref_start = ref_start
             prev_seq_start = seq_start
 
@@ -119,6 +157,18 @@ def load(
                 reftext, seqtext, seqtype)
             final_reftext[ref_start:ref_end] = reftext
             final_seqtext[ref_start:ref_end] = seqtext
+
+        insert_unaligned_region(
+            final_reftext,
+            final_seqtext,
+            seqtext,
+            seqtype,
+            0,
+            0,
+            prev_ref_start,
+            prev_seq_start
+        )
+
         yield (
             refseq.push_seqtext(
                 final_reftext,
