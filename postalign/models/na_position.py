@@ -63,7 +63,8 @@ def _pos2index(
 def _posrange2indexrange(
     nas: List['NAPosition'],
     pos_start: int,
-    pos_end: int
+    pos_end: int,
+    include_boundary_gaps: bool = False
 ) -> Tuple[int, int]:
     idx_start: int
     idx_end: int
@@ -86,6 +87,12 @@ def _posrange2indexrange(
             idx_end = _pos2index(nas, pos, LAST) + 1
             if idx_end > -1:
                 break
+    if include_boundary_gaps:
+        while idx_start > 0 and nas[idx_start - 1].is_gap:
+            idx_start -= 1
+        naslen: int = len(nas)
+        while idx_end < naslen and nas[idx_end].is_gap:
+            idx_end += 1
     return idx_start, idx_end
 
 

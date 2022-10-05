@@ -466,17 +466,15 @@ def codon_align(
     refnas: List[NAPosition] = refseq.seqtext
     seqnas: List[NAPosition] = seq.seqtext
 
-    seq_idx_start: int = NAPosition.min_nongap_index(seqnas)
-    seq_idx_end: int = NAPosition.max_nongap_index(seqnas) + 1
+    seq_idx_start: int = 0
+    seq_idx_end: int = len(seqnas)
 
-    ref_idx_start, ref_idx_end = (
-        NAPosition.posrange2indexrange(refnas, ref_start, ref_end)
-    )
+    ref_idx_start, ref_idx_end = NAPosition.posrange2indexrange(
+        refnas, ref_start, ref_end, include_boundary_gaps=True)
 
     # Determine the application boundary
     # 1) follow user-specific reference boundary (ref_start, ref_end), and
-    # 2) avoid extending codon-alignment out of query sequence
-    #    boundary (seq_start, seq_end)
+    # 2) extend codon-alignment to include ref & seq boundary gaps
     # 3) ensure ref_idx_start is at the begining of codon
     idx_start: int = (
         ref_idx_start
