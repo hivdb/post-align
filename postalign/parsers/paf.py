@@ -221,13 +221,14 @@ def load(
 
         aligned_positions: Set[int] = set()
         for pos in final_seqtext:
-            if not (pos.flag & PositionFlag.UNALIGNED):
+            if not (pos.flag & PositionFlag.UNALIGNED) and pos.pos > -1:
                 aligned_positions.add(pos.pos)
         for idx, pos in enumerate(final_seqtext):
             # Mask positions that has been aligned but repeated used as
             # unaligned. This is typically happened when sequence was
             # incorrectly concatenated. e.g. RT + PR
-            if pos.flag & PositionFlag.UNALIGNED and idx in aligned_positions:
+            if pos.flag & PositionFlag.UNALIGNED and \
+                    pos.pos > -1 and pos.pos in aligned_positions:
                 final_seqtext[idx] = seqtype.init_gaps(1)[0]
 
         yield (

@@ -136,13 +136,6 @@ class NAPosition:
         ]
 
     @classmethod
-    def init_from_triplets(
-        cls: Type['NAPosition'],
-        triplets: List[Tuple[int, int, PositionFlag]]
-    ) -> List['NAPosition']:
-        return [cls(*triplet) for triplet in triplets]
-
-    @classmethod
     def init_from_bytes(
         cls: Type['NAPosition'],
         seq_text: ByteString
