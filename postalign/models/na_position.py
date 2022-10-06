@@ -5,18 +5,13 @@ from typing import (
     ByteString,
     Type
 )
-from enum import IntFlag
+from .position_flag import PositionFlag
 
 GAP_CHAR: int = ord(b'-')
 GAP_CHARS: Tuple[int, ...] = tuple(b'-.')
 
 FIRST: cython.int = 0
 LAST: cython.int = 1
-
-
-class NAFlag(IntFlag):
-    TRIM_BY_SEQ = 1
-    NONE = 0
 
 
 @cython.ccall
@@ -101,14 +96,14 @@ class NAPosition:
 
     notation: int = cython.declare(cython.int, visibility='public')
     pos: int = cython.declare(cython.int, visibility='public')
-    flag: NAFlag = cython.declare(cython.int, visibility='public')
+    flag: PositionFlag = cython.declare(cython.int, visibility='public')
     is_gap: bool = cython.declare(cython.bint, visibility='public')
 
     def __init__(
         self: 'NAPosition',
         notation: int,
         pos: int,
-        flag: NAFlag
+        flag: PositionFlag
     ) -> None:
         self.notation = notation
         self.pos = pos
@@ -127,20 +122,23 @@ class NAPosition:
             .format(self.notation, self.pos, self.flag)
         )
 
+    def __copy__(self: 'NAPosition') -> 'NAPosition':
+        return NAPosition(self.notation, self.pos, self.flag)
+
     @classmethod
     def init_gaps(
         cls: Type['NAPosition'],
         gaplen: int
     ) -> List['NAPosition']:
         return [
-            cls(GAP_CHAR, -1, NAFlag.NONE)
+            cls(GAP_CHAR, -1, PositionFlag.NONE)
             for _ in range(gaplen)
         ]
 
     @classmethod
     def init_from_triplets(
         cls: Type['NAPosition'],
-        triplets: List[Tuple[int, int, NAFlag]]
+        triplets: List[Tuple[int, int, PositionFlag]]
     ) -> List['NAPosition']:
         return [cls(*triplet) for triplet in triplets]
 
@@ -153,7 +151,7 @@ class NAPosition:
         pos: int
         seq_text = bytes(seq_text).upper()
         return [
-            cls(na, pos, NAFlag.NONE)
+            cls(na, pos, PositionFlag.NONE)
             for na, pos in zip(seq_text, enumerate_seq_pos(seq_text))
         ]
 
@@ -208,20 +206,20 @@ class NAPosition:
         return -1
 
     @staticmethod
-    def set_flag(nas: List['NAPosition'], flag: NAFlag) -> None:
+    def set_flag(nas: List['NAPosition'], flag: PositionFlag) -> None:
         na: NAPosition
         for na in nas:
             na.flag |= flag
 
     @staticmethod
-    def any_has_flag(nas: List['NAPosition'], flag: NAFlag) -> bool:
+    def any_has_flag(nas: List['NAPosition'], flag: PositionFlag) -> bool:
         na: NAPosition
         return any([
             flag & na.flag for na in nas
         ])
 
     @staticmethod
-    def all_have_flag(nas: List['NAPosition'], flag: NAFlag) -> bool:
+    def all_have_flag(nas: List['NAPosition'], flag: PositionFlag) -> bool:
         na: NAPosition
         return all([
             flag & na.flag for na in nas

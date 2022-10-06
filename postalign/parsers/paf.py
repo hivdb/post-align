@@ -1,9 +1,10 @@
+from copy import deepcopy
 from operator import itemgetter
 from collections import defaultdict
 from pafpy import PafRecord, Strand  # type: ignore
 from typing import Type, Iterable, TextIO, List, Dict, Tuple, Set
 
-from ..models import Sequence, Position, RefSeqPair
+from ..models import Sequence, Position, RefSeqPair, PositionFlag
 from ..utils.cigar import CIGAR
 
 from . import fasta
@@ -51,13 +52,16 @@ def insert_unaligned_region(
         align1_ref_end + offset
     ] = seqtype.init_gaps(unaligned_seq_size)
 
+    unaligneds: List[Position] = deepcopy(orig_seqtext[
+        align1_seq_end:
+        align1_seq_end + unaligned_seq_size
+    ])
+    seqtype.set_flag(unaligneds, PositionFlag.UNALIGNED)
+
     seqtext[
         align1_ref_end + offset:
         align1_ref_end + offset
-    ] = orig_seqtext[
-        align1_seq_end:
-        align1_seq_end + unaligned_seq_size
-    ]
+    ] = unaligneds
 
 
 def load(
@@ -214,6 +218,17 @@ def load(
             prev_seq_start,
             2
         )
+
+        aligned_positions: Set[int] = set()
+        for pos in final_seqtext:
+            if not (pos.flag & PositionFlag.UNALIGNED):
+                aligned_positions.add(pos.pos)
+        for idx, pos in enumerate(final_seqtext):
+            # Mask positions that has been aligned but repeated used as
+            # unaligned. This is typically happened when sequence was
+            # incorrectly concatenated. e.g. RT + PR
+            if pos.flag & PositionFlag.UNALIGNED and idx in aligned_positions:
+                final_seqtext[idx] = seqtype.init_gaps(1)[0]
 
         yield (
             refseq.push_seqtext(

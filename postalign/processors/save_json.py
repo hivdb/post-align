@@ -8,7 +8,7 @@ from more_itertools import chunked
 from ..cli import cli
 from ..utils import group_by_gene_codons, find_codon_trim_slice
 from ..utils.codonutils import translate_codon
-from ..models import RefSeqPair, NAPosition, Sequence, NAFlag
+from ..models import RefSeqPair, NAPosition, Sequence, PositionFlag
 from ..processor import Processor, output_processor
 
 
@@ -172,7 +172,9 @@ def save_json(
                         ins_fs_len = nalen % 3
                         del_fs_len = 0
                     codon_text: str = NAPosition.as_str(seqcd[:3])
-                    if NAPosition.any_has_flag(seqcd[:3], NAFlag.TRIM_BY_SEQ):
+                    if NAPosition.any_has_flag(
+                        seqcd[:3], PositionFlag.TRIM_BY_SEQ
+                    ):
                         continue
                     codonpairs.append({
                         'Position': pos0 + 1,
