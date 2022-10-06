@@ -34,7 +34,7 @@ def insert_unaligned_region(
 
     """
 
-    unaligned_ref_size: int = align2_ref_start - align1_seq_end
+    unaligned_ref_size: int = align2_ref_start - align1_ref_end
     unaligned_seq_size: int = align2_seq_start - align1_seq_end
     offset: int = min(unaligned_ref_size, unaligned_seq_size)
     if insert_close_to == 2:
