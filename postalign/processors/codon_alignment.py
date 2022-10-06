@@ -5,7 +5,7 @@ from typing import Iterable, Tuple, List, Set, Optional, Dict
 from itertools import chain, groupby
 
 from ..cli import cli
-from ..utils import group_by_codons
+from ..utils import group_by_codons, find_codon_trim_slice
 from ..models import Sequence, RefSeqPair, NAPosition
 from ..utils.codonutils import translate_codons
 from ..utils.blosum62 import blosum62_score
@@ -258,6 +258,26 @@ def codon_pairs_group_key(cdpair: Tuple[
 @cython.cfunc
 @cython.inline
 @cython.returns(list)
+def anchor_gaps_to_start(nas: List[NAPosition]) -> List[NAPosition]:
+    new_nas: List[NAPosition]
+    gaps: List[NAPosition]
+    new_nas, gaps = separate_gaps_from_nas(nas)
+    return gaps + new_nas
+
+
+@cython.cfunc
+@cython.inline
+@cython.returns(list)
+def anchor_gaps_to_end(nas: List[NAPosition]) -> List[NAPosition]:
+    new_nas: List[NAPosition]
+    gaps: List[NAPosition]
+    new_nas, gaps = separate_gaps_from_nas(nas)
+    return new_nas + gaps
+
+
+@cython.cfunc
+@cython.inline
+@cython.returns(list)
 def move_gaps_to_center(nas: List[NAPosition]) -> List[NAPosition]:
     new_nas: List[NAPosition]
     gaps: List[NAPosition]
@@ -280,6 +300,7 @@ def gather_gaps(
 ]:
     """Gather gaps together according to window"""
     slicekey: slice
+    seqlen: int = len(seqnas)
     win_refnas: List[NAPosition]
     win_seqnas: List[NAPosition]
     # reverse windows so the assignment won't change index
@@ -290,8 +311,19 @@ def gather_gaps(
         win_seqnas = seqnas[slicekey]
         win_refnas, win_seqnas = remove_redundant_gaps(win_refnas, win_seqnas)
 
-        win_refnas = move_gaps_to_center(win_refnas)
-        win_seqnas = move_gaps_to_center(win_seqnas)
+        slice_to_start: bool = slicekey.start is None or slicekey.start == 0
+        slice_to_end: bool = slicekey.stop is None or slicekey.stop == seqlen
+        # If a gap can be anchored to the start/end of the whole
+        # codon-alignment fragment (typically the start/end of the gene), do so
+        if not slice_to_start and slice_to_end:
+            win_refnas = anchor_gaps_to_end(win_refnas)
+            win_seqnas = anchor_gaps_to_end(win_seqnas)
+        elif not slice_to_end and slice_to_start:
+            win_refnas = anchor_gaps_to_start(win_refnas)
+            win_seqnas = anchor_gaps_to_start(win_seqnas)
+        else:
+            win_refnas = move_gaps_to_center(win_refnas)
+            win_seqnas = move_gaps_to_center(win_seqnas)
 
         refnas[slicekey] = win_refnas
         seqnas[slicekey] = win_seqnas
@@ -319,15 +351,17 @@ def adjust_gap_placement(
     ext_refcds: List[List[NAPosition]]
     ext_seqcds: List[List[NAPosition]]
 
+    trim_slice: slice = find_codon_trim_slice(seqcodons)
+
     gap_groups: Iterable[
         Tuple[
             int,  # group key: NOGAP, REFGAP or SEQGAP
             Iterable[CodonPair]
         ]
     ] = groupby(
-        enumerate(zip(refcodons,
-                      seqcodons)),
-        codon_pairs_group_key)
+        list(enumerate(zip(refcodons, seqcodons)))[trim_slice],
+        codon_pairs_group_key
+    )
 
     for gap_type, codonpairs in gap_groups:
         if gap_type == NOGAP:

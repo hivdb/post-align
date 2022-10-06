@@ -25,8 +25,8 @@ def insert_unaligned_region(
     For example, seq has NAs "ABC" not aligned to ref "DEFG" since
     they are too different. The three unaligned NAs are added as below:
 
-    reftext: ...<ALIGNMENT_1>...D---EFG...<ALIGNMENT_2>...
-    seqtext: ...<ALIGNMENT_1>...-ABC---...<ALIGNMENT_2>...
+    reftext: ...<ALIGNMENT_1>...DEF---...<ALIGNMENT_2>...
+    seqtext: ...<ALIGNMENT_1>...---ABC...<ALIGNMENT_2>...
 
     The parameter `insert_close_to` determined if the unaligned region should
     be placed close to <ALIGNMENT_1> or <ALIGNMENT_2>
@@ -35,7 +35,7 @@ def insert_unaligned_region(
 
     unaligned_ref_size: int = align2_ref_start - align1_seq_end
     unaligned_seq_size: int = align2_seq_start - align1_seq_end
-    offset: int = 1
+    offset: int = min(unaligned_ref_size, unaligned_seq_size)
     if insert_close_to == 2:
         offset = unaligned_ref_size - offset
 

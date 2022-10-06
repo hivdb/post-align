@@ -6,12 +6,10 @@ from typing import Tuple, List, Iterable, TypedDict, Optional
 from more_itertools import chunked
 
 from ..cli import cli
-from ..utils import group_by_gene_codons
+from ..utils import group_by_gene_codons, find_codon_trim_slice
 from ..utils.codonutils import translate_codon
 from ..models import RefSeqPair, NAPosition, Sequence, NAFlag
 from ..processor import Processor, output_processor
-
-from .trim_by_ref import find_trim_slice
 
 
 def gene_range_tuples_callback(
@@ -101,18 +99,12 @@ class Payload(TypedDict):
 
 
 @cli.command('save-json')
-@click.option(
-    '--trim-by-seq/--no-trim-by-seq',
-    default=True,
-    help='Trim the reports by sequences (not ref sequence) or not'
-)
 @click.argument(
     'gene_range_tuples',
     callback=gene_range_tuples_callback,
     nargs=-1
 )
 def save_json(
-    trim_by_seq: bool,
     gene_range_tuples: List[Tuple[str, List[Tuple[int, int]]]]
 ) -> Processor[Iterable[str]]:
     """Save as NucAmino style JSON reports
@@ -133,24 +125,6 @@ def save_json(
         for idx, (refseq, seq) in enumerate(iterator):
             reftext: List[NAPosition] = refseq.seqtext
             seqtext: List[NAPosition] = seq.seqtext
-            # refstart = None
-            # refend = None
-            if trim_by_seq:
-                start: int
-                end: int
-                slicekey: slice = find_trim_slice(seq)
-                start, end, _ = slicekey.indices(len(seq))
-                NAPosition.set_flag(seqtext[:start], NAFlag.TRIM_BY_SEQ)
-                NAPosition.set_flag(seqtext[end:], NAFlag.TRIM_BY_SEQ)
-
-                # left_reftext = reftext[:start]
-                # right_reftext = reftext[end:]
-                # left_reftext = left_reftext.remove_gaps()
-                # right_reftext = right_reftext.remove_gaps()
-                # refstart = math.ceil(len(left_reftext) / 3)
-                # refend = -math.ceil(len(right_reftext) / 3)
-                # if refend == 0:
-                #     refend = None
 
             payload: Payload = {
                 'Name': seq.description,
@@ -178,8 +152,12 @@ def save_json(
                 codonpairs: List[CodonPair] = []
                 aligned_sites: List[AlignedSite] = []
                 frameshifts: List[FrameShift] = []
-                for pos0, (refcd, seqcd) in enumerate(zip(refcodons,
-                                                          seqcodons)):
+
+                trim_slice: slice = find_codon_trim_slice(seqcodons)
+
+                for pos0, (refcd, seqcd) in list(
+                    enumerate(zip(refcodons, seqcodons))
+                )[trim_slice]:
                     na: NAPosition
                     ins_fs_len: int
                     del_fs_len: int

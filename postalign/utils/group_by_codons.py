@@ -33,6 +33,27 @@ def group_by_codons(
 
 
 @cython.ccall
+@cython.returns(slice)
+def find_codon_trim_slice(
+    codons: List[List[NAPosition]]
+) -> slice:
+    left_trim: Optional[int] = None
+    for idx, codon in enumerate(codons):
+        if NAPosition.all_have_gap(codon):
+            left_trim = idx + 1
+        else:
+            break
+    right_trim: Optional[int] = None
+    codons_len: int = len(codons)
+    for idx, codon in enumerate(reversed(codons)):
+        if NAPosition.all_have_gap(codon):
+            right_trim = codons_len - 1 - idx
+        else:
+            break
+    return slice(left_trim, right_trim)
+
+
+@cython.ccall
 @cython.returns(list)
 def group_by_gene_codons(
     refnas: List[NAPosition],
