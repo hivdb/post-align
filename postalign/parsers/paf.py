@@ -160,7 +160,7 @@ def load(
                     is_shrunken = True
                     ref_end = max(ref_range) + 1
                     cigar_obj = cigar_obj.shrink_by_ref(ref_end - ref_start)
-                    cigar_text = cigar_obj.cigar_string
+                    cigar_text = cigar_obj.get_cigar_string()
 
             scanned_ref_range |= ref_range
             scanned_seq_range |= seq_range

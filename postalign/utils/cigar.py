@@ -67,6 +67,9 @@ class CIGAR:
             for num, op in CIGAR_PATTERN.findall(cigar_string)
         ]
 
+    def get_cigar_string(self: T) -> str:
+        return self.cigar_string
+
     def shrink_by_ref(self: T, keep_size: int):
         new_string: str
         new_tuple: List[Tuple[int, str]] = []
