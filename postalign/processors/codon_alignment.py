@@ -298,7 +298,6 @@ def gather_gaps(
 ]:
     """Gather gaps together according to window"""
     slicekey: slice
-    seqlen: int = len(seqnas)
     win_refnas: List[NAPosition]
     win_seqnas: List[NAPosition]
     # reverse windows so the assignment won't change index
@@ -309,13 +308,8 @@ def gather_gaps(
         win_seqnas = seqnas[slicekey]
         win_refnas, win_seqnas = remove_redundant_gaps(win_refnas, win_seqnas)
 
-        anchored_left: bool = slicekey.start is None or slicekey.start == 0
-        anchored_right: bool = slicekey.stop is None or slicekey.stop == seqlen
-        # If a gap is already anchored to either of the ends of the whole
-        # codon-alignment fragment, do nothing
-        if not anchored_left and not anchored_right:
-            win_refnas = move_gaps_to_center(win_refnas)
-            win_seqnas = move_gaps_to_center(win_seqnas)
+        win_refnas = move_gaps_to_center(win_refnas)
+        win_seqnas = move_gaps_to_center(win_seqnas)
 
         refnas[slicekey] = win_refnas
         seqnas[slicekey] = win_seqnas
