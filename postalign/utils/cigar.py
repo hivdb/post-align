@@ -1,12 +1,10 @@
 import re
 import cython  # type: ignore
-from typing import TypeVar, List, Tuple, Type
+from typing import List, Tuple, Type
 
 from ..models import Position
 
 CIGAR_PATTERN = re.compile(r'(\d+)([MNDI])')
-
-T = TypeVar('T', bound='CIGAR')
 
 
 @cython.ccall
@@ -54,7 +52,7 @@ class CIGAR:
     cigar_tuple: List[Tuple[int, str]]
 
     def __init__(
-        self: T,
+        self: "CIGAR",
         ref_start: int,
         seq_start: int,
         cigar_string: str
@@ -67,10 +65,10 @@ class CIGAR:
             for num, op in CIGAR_PATTERN.findall(cigar_string)
         ]
 
-    def get_cigar_string(self: T) -> str:
+    def get_cigar_string(self: "CIGAR") -> str:
         return self.cigar_string
 
-    def shrink_by_ref(self: T, keep_size: int):
+    def shrink_by_ref(self: "CIGAR", keep_size: int) -> "CIGAR":
         new_string: str
         new_tuple: List[Tuple[int, str]] = []
         remain_size: int = keep_size
@@ -91,7 +89,7 @@ class CIGAR:
         )
 
     def get_alignment(
-        self: T,
+        self: "CIGAR",
         refseq: List[Position],
         seq: List[Position],
         seqtype: Type[Position]
@@ -102,7 +100,7 @@ class CIGAR:
         ] = _get_alignment(self, refseq, seq, seqtype)
         return alignment
 
-    def __repr__(self: T) -> str:
+    def __repr__(self: "CIGAR") -> str:
         return ('<CIGAR {!r} ref_start={!r} seq_start={!r}>'
                 .format(self.cigar_string,
                         self.ref_start,

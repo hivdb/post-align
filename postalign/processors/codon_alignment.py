@@ -504,6 +504,8 @@ def codon_align(
 
     while True:
         test_idx_start = NAPosition.min_nongap_index(refnas, idx_start)
+        if test_idx_start < 0:
+            break
         if (refnas[test_idx_start].pos - ref_start) % 3 == 0:
             break
         idx_start = test_idx_start + 1
