@@ -214,8 +214,6 @@ def load(
             prev_seq_start,
             2
         )
-        print(seqtype.as_str(final_reftext))
-        print(seqtype.as_str(final_seqtext))
 
         yield (
             refseq.push_seqtext(
