@@ -32,6 +32,10 @@ def insert_unaligned_region(
     unaligned_seq_size: int = align2_seq_start - align1_seq_end
     min_unaligned_size: int = min(unaligned_ref_size, unaligned_seq_size)
 
+    if unaligned_seq_size < 0:
+        # sequence is incorrectly concatenated (e.g. PR/RT switched);
+        # return to avoid further damaged alignment
+        return
     if unaligned_ref_size == 0 and unaligned_seq_size == 0:
         return
 
@@ -127,11 +131,48 @@ def load(
         prev_seq_start: int = len(seq)
         ref_paf_params: List[str] = []
         seq_paf_params: List[str] = []
+        scanned_ref_range: Set[int] = set()
+        scanned_seq_range: Set[int] = set()
         for ref_start, ref_end, seq_start, seq_end, cigar_text in \
                 sorted(pafs, key=itemgetter(0), reverse=True):
             # scan PAF from end to begining
+
+            is_shrunken: bool = False
+            cigar_obj: CIGAR = CIGAR(ref_start, seq_start, cigar_text)
+
+            # deal with alignment overlaps
+            ref_range = set(range(ref_start, ref_end))
+            seq_range = set(range(seq_start, seq_end))
+
+            if seq_range & scanned_seq_range:
+                # same sequence is aligned again partially/fully, skip
+                continue
+
+            if ref_range & scanned_ref_range:
+                # same reference is aligned again partially/fully
+                ref_range -= scanned_ref_range
+                if not ref_range:
+                    # whole ref_range has already been aligned previously, skip
+                    continue
+                else:
+                    # shrink the ref_end to the max scanned position;
+                    # note this also shrink the cigar
+                    is_shrunken = True
+                    ref_end = max(ref_range) + 1
+                    cigar_obj = cigar_obj.shrink_by_ref(ref_end - ref_start)
+                    cigar_text = cigar_obj.cigar_string
+
+            scanned_ref_range |= ref_range
+            scanned_seq_range |= seq_range
+
             reftext: List[Position] = refseq.seqtext
             seqtext: List[Position] = seq.seqtext
+
+            reftext, seqtext = cigar_obj.get_alignment(
+                reftext, seqtext, seqtype)
+
+            if is_shrunken:
+                seq_end = seq_start + seqtype.count_nongaps(seqtext)
 
             ref_paf_params.append(
                 '{},{},{}'.format(ref_start, ref_end, cigar_text))
@@ -141,7 +182,7 @@ def load(
             insert_unaligned_region(
                 final_reftext,
                 final_seqtext,
-                seqtext,
+                seq.seqtext,
                 seqtype,
                 ref_end,
                 seq_end,
@@ -152,16 +193,13 @@ def load(
             prev_ref_start = ref_start
             prev_seq_start = seq_start
 
-            cigar_obj: CIGAR = CIGAR(ref_start, seq_start, cigar_text)
-            reftext, seqtext = cigar_obj.get_alignment(
-                reftext, seqtext, seqtype)
             final_reftext[ref_start:ref_end] = reftext
             final_seqtext[ref_start:ref_end] = seqtext
 
         insert_unaligned_region(
             final_reftext,
             final_seqtext,
-            seqtext,
+            seq.seqtext,
             seqtype,
             0,
             0,

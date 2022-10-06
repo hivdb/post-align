@@ -67,6 +67,26 @@ class CIGAR:
             for num, op in CIGAR_PATTERN.findall(cigar_string)
         ]
 
+    def shrink_by_ref(self: T, keep_size: int):
+        new_string: str
+        new_tuple: List[Tuple[int, str]] = []
+        remain_size: int = keep_size
+        for num, op in self.cigar_tuple:
+            if op == 'I':
+                new_tuple.append((num, op))
+            elif num < remain_size:
+                new_tuple.append((num, op))
+                remain_size -= num
+            else:
+                new_tuple.append((remain_size, op))
+                break
+        new_string = ''.join(['{}{}'.format(num, op) for num, op in new_tuple])
+        return CIGAR(
+            self.ref_start,
+            self.seq_start,
+            new_string
+        )
+
     def get_alignment(
         self: T,
         refseq: List[Position],

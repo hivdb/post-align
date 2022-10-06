@@ -31,6 +31,10 @@ class AAPosition:
     def count_gaps(nas: List['AAPosition']) -> int:
         raise NotImplementedError('Amino acid sequence is not yet supported')
 
+    @staticmethod
+    def count_nongaps(nas: List['AAPosition']) -> int:
+        raise NotImplementedError('Amino acid sequence is not yet supported')
+
     @classmethod
     def as_str(
         cls: Type['AAPosition'],
