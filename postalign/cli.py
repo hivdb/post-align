@@ -174,7 +174,7 @@ def check_processors(processors: List[Processor]) -> None:
         )
 
 
-@cli.resultcallback()
+@cli.result_callback()
 def process_pipeline(
     processors: List[Processor],
     input_alignment: TextIO,

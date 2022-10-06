@@ -8,6 +8,7 @@ from ..cli import cli
 from ..utils import group_by_codons, find_codon_trim_slice
 from ..models import Sequence, RefSeqPair, NAPosition
 from ..utils.codonutils import translate_codons
+from ..utils.iupac import iupac_score
 from ..utils.blosum62 import blosum62_score
 
 from ..processor import intermediate_processor, Processor
@@ -77,6 +78,19 @@ def find_windows_with_gap(
     seqnas: List[NAPosition],
     min_gap_distance: int
 ) -> List[slice]:
+    """List all windows with gap:
+
+    Examples:
+
+    ref: AAAA-----------
+    seq: -----------BBBB
+
+    ref: -----------
+    seq: -----------
+
+    ref: ---AAAA----
+    seq: ---BBBB----
+    """
     refna: NAPosition
     seqna: NAPosition
     first_gap_idx: int = -1
@@ -129,11 +143,15 @@ def calc_match_score(
     mynas: List[NAPosition],
     othernas: List[NAPosition]
 ) -> float:
+    myna: NAPosition
+    otherna: NAPosition
     myaa: bytes
     otheraa: bytes
     myaas: List[bytes] = translate_codons(mynas)
     otheraas: List[bytes] = translate_codons(othernas)
     score: float = .0
+    for myna, otherna in zip(mynas, othernas):
+        score += iupac_score(myna.notation, otherna.notation)
     for myaa, otheraa in zip(myaas, otheraas):
         score += blosum62_score(myaa, otheraa)
     return score
@@ -258,26 +276,6 @@ def codon_pairs_group_key(cdpair: Tuple[
 @cython.cfunc
 @cython.inline
 @cython.returns(list)
-def anchor_gaps_to_start(nas: List[NAPosition]) -> List[NAPosition]:
-    new_nas: List[NAPosition]
-    gaps: List[NAPosition]
-    new_nas, gaps = separate_gaps_from_nas(nas)
-    return gaps + new_nas
-
-
-@cython.cfunc
-@cython.inline
-@cython.returns(list)
-def anchor_gaps_to_end(nas: List[NAPosition]) -> List[NAPosition]:
-    new_nas: List[NAPosition]
-    gaps: List[NAPosition]
-    new_nas, gaps = separate_gaps_from_nas(nas)
-    return new_nas + gaps
-
-
-@cython.cfunc
-@cython.inline
-@cython.returns(list)
 def move_gaps_to_center(nas: List[NAPosition]) -> List[NAPosition]:
     new_nas: List[NAPosition]
     gaps: List[NAPosition]
@@ -311,17 +309,11 @@ def gather_gaps(
         win_seqnas = seqnas[slicekey]
         win_refnas, win_seqnas = remove_redundant_gaps(win_refnas, win_seqnas)
 
-        slice_to_start: bool = slicekey.start is None or slicekey.start == 0
-        slice_to_end: bool = slicekey.stop is None or slicekey.stop == seqlen
-        # If a gap can be anchored to the start/end of the whole
-        # codon-alignment fragment (typically the start/end of the gene), do so
-        if not slice_to_start and slice_to_end:
-            win_refnas = anchor_gaps_to_end(win_refnas)
-            win_seqnas = anchor_gaps_to_end(win_seqnas)
-        elif not slice_to_end and slice_to_start:
-            win_refnas = anchor_gaps_to_start(win_refnas)
-            win_seqnas = anchor_gaps_to_start(win_seqnas)
-        else:
+        anchored_left: bool = slicekey.start is None or slicekey.start == 0
+        anchored_right: bool = slicekey.stop is None or slicekey.stop == seqlen
+        # If a gap is already anchored to either of the ends of the whole
+        # codon-alignment fragment, do nothing
+        if not anchored_left and not anchored_right:
             win_refnas = move_gaps_to_center(win_refnas)
             win_seqnas = move_gaps_to_center(win_seqnas)
 
