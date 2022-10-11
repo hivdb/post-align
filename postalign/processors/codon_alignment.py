@@ -141,7 +141,8 @@ def move_gap_to_codon_end(
 @cython.inline
 def calc_match_score(
     mynas: List[NAPosition],
-    othernas: List[NAPosition]
+    othernas: List[NAPosition],
+    base_score: float
 ) -> float:
     myna: NAPosition
     otherna: NAPosition
@@ -149,7 +150,7 @@ def calc_match_score(
     otheraa: bytes
     myaas: List[bytes] = translate_codons(mynas)
     otheraas: List[bytes] = translate_codons(othernas)
-    score: float = .0
+    score: float = base_score
     for myna, otherna in zip(mynas, othernas):
         score += iupac_score(myna.notation, otherna.notation)
     for myaa, otheraa in zip(myaas, otheraas):
@@ -182,7 +183,9 @@ def find_best_matches(
     othernas: List[NAPosition],
     bp1_indices: Set[int],
     gap_type: int,
-    gap_placement_score: Dict[Tuple[int, int], int]
+    gap_placement_score: Dict[Tuple[int, int], int],
+    is_start: bool,
+    is_end: bool
 ) -> List[NAPosition]:
     idx: int
     score: Tuple[float, int]
@@ -194,11 +197,17 @@ def find_best_matches(
     max_score: Optional[Tuple[float, int]] = None
     best_mynas: Optional[List[NAPosition]] = None
     scanstart: int = 3 if gap_type == REFGAP else 0
-    for idx in range(scanstart, len(mynas) + 1, 3):
+    mynas_len: int = len(mynas)
+    for idx in range(scanstart, mynas_len + 1, 3):
         napos: int
         test_mynas = mynas[::]
         test_mynas[idx:idx] = mygap
-        score_val: float = calc_match_score(test_mynas, othernas)
+        base_score: float = float(-gaplen)
+        if is_start and idx == 0:
+            base_score = .0
+        elif is_end and idx + 3 > mynas_len:
+            base_score = .0
+        score_val: float = calc_match_score(test_mynas, othernas, base_score)
         if gap_type == REFGAP:
             napos = mynas[idx - 1].pos
         else:  # gap_type == SEQGAP
@@ -233,6 +242,8 @@ def paired_find_best_matches(
     seqnas: List[NAPosition],
     gap_type: int,
     gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
+    is_seq_start: bool,
+    is_seq_end: bool
 ) -> Tuple[List[NAPosition], List[NAPosition]]:
     idx: int
     na: NAPosition
@@ -249,12 +260,17 @@ def paired_find_best_matches(
         refnas = find_best_matches(
             refnas, seqnas, bp1_indices,
             gap_type,
-            gap_placement_score[gap_type])
+            gap_placement_score[gap_type],
+            # for REFGAPs, ending gaps also have penalty
+            False,
+            False)
     elif gap_type == SEQGAP:
         seqnas = find_best_matches(
             seqnas, refnas, bp1_indices,
             gap_type,
-            gap_placement_score[gap_type])
+            gap_placement_score[gap_type],
+            is_seq_start,
+            is_seq_end)
     return refnas, seqnas
 
 
@@ -325,6 +341,8 @@ def adjust_gap_placement(
     seqcodons: List[List[NAPosition]],
     window_size: int,
     gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
+    is_seq_start: bool,
+    is_seq_end: bool
 ) -> Tuple[List[List[NAPosition]], List[List[NAPosition]]]:
     """Adjust continuous refgap/seqgap placement"""
     start: int
@@ -388,7 +406,9 @@ def adjust_gap_placement(
             win_refnas,
             win_seqnas,
             gap_type,
-            gap_placement_score
+            gap_placement_score,
+            is_seq_start and start == trim_slice.start,
+            is_seq_end and end == trim_slice.stop
         )
         (win_refcodons,
          win_seqcodons) = group_by_codons(win_refnas, win_seqnas)
@@ -407,6 +427,8 @@ def realign_gaps(
     min_gap_distance: int,
     window_size: int,
     gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
+    is_seq_start: bool,
+    is_seq_end: bool
 ) -> Tuple[List[NAPosition], List[NAPosition]]:
     refcodons: List[List[NAPosition]]
     seqcodons: List[List[NAPosition]]
@@ -418,7 +440,9 @@ def realign_gaps(
         refcodons,
         seqcodons,
         window_size,
-        gap_placement_score
+        gap_placement_score,
+        is_seq_start,
+        is_seq_end
     )
 
     # move gaps in seqcodons to codon ends
@@ -520,6 +544,9 @@ def codon_align(
         # nothing to be codon aligned
         return refseq, seq
 
+    is_seq_start: bool = idx_start <= NAPosition.min_nongap_index(seqnas)
+    is_seq_end: bool = idx_end > NAPosition.max_nongap_index(seqnas)
+
     # step 1: apply reading frame
     refnas = refnas[idx_start:idx_end]
     seqnas = seqnas[idx_start:idx_end]
@@ -529,7 +556,13 @@ def codon_align(
 
     # step 2: gather and re-align nearby gaps located in same window
     refnas, seqnas = realign_gaps(
-        refnas, seqnas, min_gap_distance, window_size, gap_placement_score)
+        refnas,
+        seqnas,
+        min_gap_distance,
+        window_size,
+        gap_placement_score,
+        is_seq_start,
+        is_seq_end)
 
     # step 3: save "codon aligned" refseq and seq
     refseq = refseq.push_seqtext(

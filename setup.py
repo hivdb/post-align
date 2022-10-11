@@ -42,6 +42,10 @@ extensions = [
     Extension(
         name='postalign.utils.blosum62',
         sources=['postalign/utils/blosum62.py']
+    ),
+    Extension(
+        name='postalign.utils.iupac',
+        sources=['postalign/utils/iupac.py']
     )
 ]
 

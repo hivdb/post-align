@@ -37,14 +37,14 @@ def group_by_codons(
 def find_codon_trim_slice(
     codons: List[List[NAPosition]]
 ) -> slice:
-    left_trim: Optional[int] = None
+    left_trim: int = 0
     for idx, codon in enumerate(codons):
         if NAPosition.all_have_gap(codon):
             left_trim = idx + 1
         else:
             break
-    right_trim: Optional[int] = None
     codons_len: int = len(codons)
+    right_trim: int = codons_len
     for idx, codon in enumerate(reversed(codons)):
         if NAPosition.all_have_gap(codon):
             right_trim = codons_len - 1 - idx
