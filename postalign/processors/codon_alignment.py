@@ -615,7 +615,7 @@ def parse_gap_placement_score(value: str) -> Dict[
 def gap_placement_score_callback(
     ctx: click.Context,
     param: click.Option,
-    value: str
+    value: List[str]
 ) -> Dict[int, Dict[Tuple[int, int], int]]:
     if not param.name:
         raise click.BadParameter(
@@ -626,7 +626,7 @@ def gap_placement_score_callback(
     try:
         result: Dict[
             int, Dict[Tuple[int, int], int]
-        ] = parse_gap_placement_score(value)
+        ] = parse_gap_placement_score(','.join(value))
         return result
     except ValueError as exp:
         raise click.BadOptionUsage(
@@ -658,7 +658,8 @@ def gap_placement_score_callback(
 @click.option(
     '--gap-placement-score',
     type=str,
-    default='',
+    multiple=True,
+    default=[],
     callback=gap_placement_score_callback,
     help=(
         'Bonus (positive number) or penalty (negative number) for gaps '
