@@ -1,10 +1,13 @@
 import cython  # type: ignore
 from typing import (
+    Any,
     List,
     Tuple,
     ByteString,
+    Optional,
     Type
 )
+from itertools import zip_longest
 from .position_flag import PositionFlag
 
 GAP_CHAR: int = ord(b'-')
@@ -99,16 +102,22 @@ class NAPosition:
     flag: PositionFlag = cython.declare(cython.int, visibility='public')
     is_gap: bool = cython.declare(cython.bint, visibility='public')
 
+    # `payload` can carry any kind of object. It is useful in circumstances
+    # such as codon-aligning multi-alignment sequences
+    payload: Any = cython.declare(object, visibility='public')
+
     def __init__(
         self: 'NAPosition',
         notation: int,
         pos: int,
-        flag: PositionFlag
+        flag: PositionFlag,
+        payload: Any = None
     ) -> None:
         self.notation = notation
         self.pos = pos
         self.flag = flag
         self.is_gap = notation in GAP_CHARS
+        self.payload = payload
 
     def __str__(self: 'NAPosition') -> str:
         return chr(self.notation)
@@ -118,12 +127,12 @@ class NAPosition:
 
     def __repr__(self: 'NAPosition') -> str:
         return (
-            'NAPosition({!r}, {!r}, {!r})'
-            .format(self.notation, self.pos, self.flag)
+            'NAPosition({!r}, {!r}, {!r}, {!r})'
+            .format(self.notation, self.pos, self.flag, self.payload)
         )
 
     def __copy__(self: 'NAPosition') -> 'NAPosition':
-        return NAPosition(self.notation, self.pos, self.flag)
+        return NAPosition(self.notation, self.pos, self.flag, self.payload)
 
     @classmethod
     def init_gaps(
@@ -138,14 +147,21 @@ class NAPosition:
     @classmethod
     def init_from_bytes(
         cls: Type['NAPosition'],
-        seq_text: ByteString
+        seq_text: ByteString,
+        seq_payload: Optional[List] = None
     ) -> List['NAPosition']:
         na: int
         pos: int
         seq_text = bytes(seq_text).upper()
+        if seq_payload is None:
+            seq_payload = []
         return [
-            cls(na, pos, PositionFlag.NONE)
-            for na, pos in zip(seq_text, enumerate_seq_pos(seq_text))
+            cls(na, pos, PositionFlag.NONE, payload)
+            for na, pos, payload in zip_longest(
+                seq_text,
+                enumerate_seq_pos(seq_text),
+                seq_payload
+            )
         ]
 
     @staticmethod

@@ -10,7 +10,7 @@ post-align = {editable = true, path = "."}
 mypy = "*"
 
 [packages]
-click = "*"
+click = ">=8.1.1"
 more-itertools = "*"
 pafpy = "*"
 types-setuptools = "*"

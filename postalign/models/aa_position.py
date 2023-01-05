@@ -1,5 +1,5 @@
 import cython  # type: ignore
-from typing import Type, List, ByteString
+from typing import Any, Optional, Type, List, ByteString
 from .position_flag import PositionFlag
 
 
@@ -11,6 +11,8 @@ class AAPosition:
     flag: PositionFlag = cython.declare(cython.int, visibility='public')
     is_gap: bool = cython.declare(cython.bint, visibility='public')
 
+    payload: Any = cython.declare(object, visibility='public')
+
     def __copy__(self: 'AAPosition') -> 'AAPosition':
         raise NotImplementedError('Amino acid sequence is not yet supported')
 
@@ -21,7 +23,8 @@ class AAPosition:
     @classmethod
     def init_from_bytes(
         cls: Type['AAPosition'],
-        seq_text: ByteString
+        seq_text: ByteString,
+        seq_payload: Optional[List] = None
     ) -> List['AAPosition']:
         raise NotImplementedError('Amino acid sequence is not yet supported')
 
