@@ -1,7 +1,7 @@
 import re
 import click
 import cython  # type: ignore
-from typing import Iterable, Tuple, List, Set, Optional, Dict
+from typing import Iterable, Tuple, List, Set, Optional, Dict, Any
 from itertools import chain, groupby
 
 from ..cli import cli
@@ -710,7 +710,9 @@ def codon_alignment(
         )
 
     @intermediate_processor('codon-alignment')
-    def processor(iterator: Iterable[RefSeqPair]) -> Iterable[RefSeqPair]:
+    def processor(
+        iterator: Iterable[RefSeqPair], *args: Any
+    ) -> Iterable[RefSeqPair]:
         refseq: Sequence
         seq: Sequence
         for refseq, seq in iterator:

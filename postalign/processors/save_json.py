@@ -2,13 +2,13 @@ import orjson
 # import math
 import click
 from textwrap import indent
-from typing import Tuple, List, Iterable, TypedDict, Optional
+from typing import Tuple, List, Iterable, TypedDict, Optional, Dict
 from more_itertools import chunked
 
 from ..cli import cli
 from ..utils import group_by_gene_codons, find_codon_trim_slice
 from ..utils.codonutils import translate_codon
-from ..models import RefSeqPair, NAPosition, Sequence, PositionFlag
+from ..models import RefSeqPair, NAPosition, Sequence, PositionFlag, Message
 from ..processor import Processor, output_processor
 
 
@@ -96,6 +96,7 @@ class Payload(TypedDict):
     Name: str
     Modifiers: List[List[str]]
     GeneReports: List[GeneReport]
+    Messages: List[Dict[str, str]]
 
 
 @cli.command('save-json')
@@ -117,7 +118,10 @@ def save_json(
     num_indent: int = 2
 
     @output_processor('save-json')
-    def processor(iterator: Iterable[RefSeqPair]) -> Iterable[str]:
+    def processor(
+        iterator: Iterable[RefSeqPair],
+        messages: List[Message]
+    ) -> Iterable[str]:
         # TODO: MSA remap?
         refseq: Sequence
         seq: Sequence
@@ -125,12 +129,14 @@ def save_json(
         for idx, (refseq, seq) in enumerate(iterator):
             reftext: List[NAPosition] = refseq.seqtext
             seqtext: List[NAPosition] = seq.seqtext
+            seqmessages = [m for m in messages if m.seqid == seq.seqid]
 
             payload: Payload = {
                 'Name': seq.description,
                 'Modifiers': [[str(mod) for mod in mods]
                               for _, mods in seq.modifiers],
-                'GeneReports': []
+                'GeneReports': [],
+                'Messages': [m.to_dict() for m in seqmessages]
             }
 
             gene_codons: List[

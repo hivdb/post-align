@@ -1,5 +1,5 @@
 import re
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Any
 
 from ..cli import cli
 from ..models import Sequence, RefSeqPair
@@ -28,7 +28,10 @@ def trim_by_ref() -> Processor[Iterable[RefSeqPair]]:
     """Trim all alignments by reference sequence"""
 
     @intermediate_processor('trim-by-ref')
-    def processor(iterator: Iterable[RefSeqPair]) -> Iterable[RefSeqPair]:
+    def processor(
+        iterator: Iterable[RefSeqPair],
+        *args: Any
+    ) -> Iterable[RefSeqPair]:
         for refseq, seq in iterator:
             if seq.seqtext == '':
                 # skip unaligned sequence

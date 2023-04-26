@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from typing import TextIO, List, Iterable, Type
 
 from . import fasta, paf
+from ..models import Message
 from ..models.sequence import RefSeqPair, Position
 
 DEFAULT_TIMEOUT = 300
@@ -15,6 +16,7 @@ def load(
     fastafp: TextIO,
     reference: TextIO,
     seqtype: Type[Position],
+    messages: List[Message],
     *,
     minimap2_execute: List[str] = ['minimap2']
 ) -> Iterable[RefSeqPair]:
@@ -58,4 +60,5 @@ def load(
                 .format(errs)
             )
         paffp = StringIO(outs)
-        return paf.load(paffp, seqpath.open(), refpath.open(), seqtype)
+        return paf.load(paffp, seqpath.open(),
+                        refpath.open(), seqtype, messages)

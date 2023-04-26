@@ -1,10 +1,11 @@
 from copy import deepcopy
-from operator import itemgetter
 from collections import defaultdict
 from pafpy import PafRecord, Strand  # type: ignore
 from typing import Type, Iterable, TextIO, List, Dict, Tuple, Set
 
-from ..models import Sequence, Position, RefSeqPair, PositionFlag
+from ..models import (
+    Sequence, Position, RefSeqPair, PositionFlag, Message, MessageLevel
+)
 from ..utils.cigar import CIGAR
 
 from . import fasta
@@ -68,7 +69,8 @@ def load(
     paffp: TextIO,
     seqs_prior_alignment: TextIO,
     reference: TextIO,
-    seqtype: Type[Position]
+    seqtype: Type[Position],
+    messages: List[Message]
 ) -> Iterable[RefSeqPair]:
     seq: Sequence
     ref_start: int
@@ -145,7 +147,7 @@ def load(
         scanned_ref_range: Set[int] = set()
         scanned_seq_range: Set[int] = set()
         for ref_start, ref_end, seq_start, seq_end, cigar_text in \
-                sorted(pafs, key=itemgetter(0), reverse=True):
+                sorted(pafs, key=lambda x: (x[1], x[0]), reverse=True):
             # scan PAF from end to begining
 
             is_shrunken: bool = False
@@ -156,18 +158,41 @@ def load(
             seq_range = set(range(seq_start, seq_end))
 
             if seq_range & scanned_seq_range:
-                # same sequence is aligned again partially/fully, skip
+                # same sequence is aligned again partially/fully, skip but warn
+                messages.append(Message(
+                    seq.seqid,
+                    MessageLevel.WARNING,
+                    f'Alignment of {seq_start}-{seq_end} to reference '
+                    f'region {ref_start}-{ref_end} is omitted, '
+                    'since the SEQ has already been aligned.'
+                ))
                 continue
 
             if ref_range & scanned_ref_range:
                 # same reference is aligned again partially/fully
                 ref_range -= scanned_ref_range
                 if not ref_range:
-                    # whole ref_range has already been aligned previously, skip
+                    # whole ref_range has already been aligned previously,
+                    # skip but warn
+                    messages.append(Message(
+                        seq.seqid,
+                        MessageLevel.WARNING,
+                        f'Alignment of {seq_start}-{seq_end} to reference '
+                        f'region {ref_start}-{ref_end} is omitted, '
+                        'since the REF has already been aligned.'
+                    ))
                     continue
                 else:
                     # shrink the ref_end to the max scanned position;
-                    # note this also shrink the cigar
+                    # note this also shrink the cigar.
+                    # also leave a warning message for the user
+                    messages.append(Message(
+                        seq.seqid,
+                        MessageLevel.WARNING,
+                        f'Alignment of {seq_start}-{seq_end} to reference '
+                        f'region {ref_start}-{ref_end} is partially omitted, '
+                        'since the REF has already been aligned.'
+                    ))
                     is_shrunken = True
                     ref_end = max(ref_range) + 1
                     cigar_obj = cigar_obj.shrink_by_ref(ref_end - ref_start)

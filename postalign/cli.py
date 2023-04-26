@@ -10,6 +10,7 @@ from typing import (
 
 from .processor import Processor
 from .parsers import msa, paf, fasta, minimap2
+from .models import Message
 from .models.sequence import RefSeqPair, Sequence, NAPosition
 
 
@@ -145,13 +146,14 @@ def cli(
 
 def call_processors(
     processors: List[Processor],
-    iterator: Iterable[RefSeqPair]
+    iterator: Iterable[RefSeqPair],
+    messages: List[Message]
 ) -> Iterable[str]:
     processor: Processor[Iterable[RefSeqPair]]
     for processor in processors[:-1]:
-        iterator = processor(iterator)
+        iterator = processor(iterator, messages)
     last_processor: Processor[Iterable[str]] = processors[-1]
-    return last_processor(iterator)
+    return last_processor(iterator, messages)
 
 
 def check_processors(processors: List[Processor]) -> None:
@@ -190,6 +192,7 @@ def process_pipeline(
     seqtype: Type[NAPosition] = NAPosition
     iterator: Iterable[RefSeqPair]
     check_processors(processors)
+    messages: List[Message] = []
 
     if not nucleotides:
         raise click.ClickException(
@@ -201,7 +204,7 @@ def process_pipeline(
             iterator = msa.load(input_alignment, reference, seqtype)
     elif alignment_format == 'PAF' and seqs_prior_alignment:
         iterator = paf.load(input_alignment, seqs_prior_alignment,
-                            reference, seqtype)
+                            reference, seqtype, messages)
     elif alignment_format == 'MINIMAP2':
         minimap2_execute = ['minimap2']
         if minimap2_opts:
@@ -210,6 +213,7 @@ def process_pipeline(
             input_alignment,
             reference,
             seqtype,
+            messages,
             minimap2_execute=minimap2_execute
         )
     else:
@@ -221,10 +225,10 @@ def process_pipeline(
         import cProfile
         import pstats
         with cProfile.Profile() as profile:
-            for partial in call_processors(processors, iterator):
+            for partial in call_processors(processors, iterator, messages):
                 output.write(partial)
             ps = pstats.Stats(profile)
             ps.print_stats()
     else:
-        for partial in call_processors(processors, iterator):
+        for partial in call_processors(processors, iterator, messages):
             output.write(partial)

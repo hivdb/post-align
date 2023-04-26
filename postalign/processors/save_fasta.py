@@ -1,5 +1,5 @@
 import click
-from typing import Iterable
+from typing import Iterable, Any
 
 from ..cli import cli
 from ..models import RefSeqPair, Sequence
@@ -32,7 +32,10 @@ def save_fasta(
     """Save prior post-alignment results as a FASTA file"""
 
     @output_processor('save-fasta')
-    def processor(iterator: Iterable[RefSeqPair]) -> Iterable[str]:
+    def processor(
+        iterator: Iterable[RefSeqPair],
+        *args: Any
+    ) -> Iterable[str]:
         # TODO: MSA remap?
         idx: int
         refseq: Sequence
