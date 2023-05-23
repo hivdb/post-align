@@ -37,7 +37,7 @@ def load(
 
     for line in fp:
         if line.startswith('>'):
-            if header and curseq:
+            if header:
                 yield make_seq()
             header = line[1:].strip()
             curseq = bytearray()
@@ -45,7 +45,7 @@ def load(
             continue
         else:
             curseq.extend(bytes(line.strip(), 'ASCII', 'ignore'))
-    if header and curseq:
+    if header:
         yield make_seq()
 
 
