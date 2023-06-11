@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "1f5b0dd5e84a32199f73976a4673bf58954d992b785f6fc206c19a02353273d4"
+            "sha256": "8a147f29daa54cfc39c09058ab2a3a73fac9ee23aec34b76b5e7ec81436019ca"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -288,16 +288,12 @@
             ],
             "version": "==0.7.5"
         },
-        "post-align": {
-            "editable": true,
-            "path": "."
-        },
         "prompt-toolkit": {
             "hashes": [
                 "sha256:23ac5d50538a9a38c8bde05fecb47d0b403ecd0662857a86f886f798563d5b9b",
                 "sha256:45ea77a2f7c60418850331366c81cf6b5b9cf4c7fd34616f733c5427e6abbb1f"
             ],
-            "markers": "python_version >= '3.7'",
+            "markers": "python_full_version >= '3.7.0'",
             "version": "==3.0.38"
         },
         "ptyprocess": {
