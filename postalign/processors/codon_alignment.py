@@ -615,7 +615,7 @@ def parse_gap_placement_score(value: str) -> Dict[
 def gap_placement_score_callback(
     ctx: click.Context,
     param: click.Option,
-    value: List[str]
+    value: Tuple[str]
 ) -> Dict[int, Dict[Tuple[int, int], int]]:
     if not param.name:
         raise click.BadParameter(
