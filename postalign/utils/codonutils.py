@@ -88,6 +88,8 @@ CODON_TABLE: Dict[Tuple[int, ...], Tuple[int, ...]] = {
     tuple(b'TAA'): tuple(b'*'),
     tuple(b'TGA'): tuple(b'*'),
     tuple(b'TAG'): tuple(b'*'),
+
+    tuple(b'...'): tuple(b'X'),  # GAP codon
 }
 
 REVERSE_CODON_TABLE: Dict[int, List[bytes]] = {}
