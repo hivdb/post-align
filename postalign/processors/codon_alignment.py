@@ -660,10 +660,10 @@ def codon_alignment(
             ),
         ),
     ] = 10,
-    # For NASize, 0 means any size
-    #                        Indel         NAPos NASize Score
-    #                          v              v     v     v
     gap_placement_score: Annotated[
+        # For NASize, 0 means any size
+        #   Indel         NAPos NASize Score
+        #     v              v     v     v
         Dict[int, Dict[Tuple[int, int], int]],
         typer.Option(
             (), '--gap-placement-score',
