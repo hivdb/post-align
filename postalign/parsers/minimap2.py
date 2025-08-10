@@ -1,4 +1,6 @@
-import click
+"""Parser for alignments produced by minimap2."""
+
+import typer
 from io import StringIO
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired, PIPE
@@ -55,9 +57,8 @@ def load(
             proc.kill()
             outs, errs = proc.communicate()
         if proc.returncode != 0:
-            raise click.ClickException(
-                'Error happened during xecuting minimap2: {}'
-                .format(errs)
+            raise typer.BadParameter(
+                'Error happened during executing minimap2: {}'.format(errs)
             )
         paffp = StringIO(outs)
         return paf.load(paffp, seqpath.open(),

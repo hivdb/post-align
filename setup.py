@@ -96,7 +96,7 @@ if __name__ == '__main__':
                 'profile': False,
                 'linetrace': False
             }
-        ),
+        ),  # type: ignore[no-untyped-call]
         # tests_require=reqs('test-requirements.txt'),
         # include_package_data=True,
         entry_points={'console_scripts': [

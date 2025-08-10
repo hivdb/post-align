@@ -12,12 +12,13 @@ pytest = "*"
 pytest-cov = "*"
 
 [packages]
-click = ">=8.1.1"
 more-itertools = "*"
 pafpy = "*"
 types-setuptools = "*"
 cython = "*"
 orjson = ">3.10.0"
+rich = "*"
+typer = "*"
 
 [requires]
 python_version = "3.13"

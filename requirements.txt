@@ -1,7 +1,8 @@
 -i https://pypi.org/simple
-click==8.2.1; python_version >= '3.10'
 cython==3.1.2; python_version >= '3.8'
 more-itertools==10.7.0; python_version >= '3.9'
 orjson==3.11.1; python_version >= '3.9'
 pafpy==0.2.0; python_version >= '3.6' and python_version < '4.0'
 types-setuptools==80.9.0.20250809; python_version >= '3.9'
+rich==14.1.0; python_version >= '3.9'
+typer==0.16.0; python_version >= '3.9'

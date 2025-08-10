@@ -1,8 +1,10 @@
+"""Processor generating NucAmino-style JSON reports."""
+
 import orjson
 # import math
-import click
+import typer
 from textwrap import indent
-from typing import Tuple, List, Iterable, TypedDict, Optional, Dict
+from typing import Annotated, Dict, Iterable, List, Optional, Tuple, TypedDict
 from more_itertools import chunked
 
 from ..cli import cli
@@ -12,10 +14,13 @@ from ..models import RefSeqPair, NAPosition, Sequence, PositionFlag, Message
 from ..processor import Processor, output_processor
 
 
+GeneRanges = List[Tuple[str, List[Tuple[int, int]]]]
+
+
 def gene_range_tuples_callback(
-    ctx: click.Context,
-    param: str,
-    value: Tuple[str]
+    ctx: typer.Context,
+    param: typer.CallbackParam,
+    value: Tuple[str, ...],
 ) -> List[Tuple[str, List[Tuple[int, int]]]]:
     one: str
     tuples: List[Tuple[str, List[Tuple[int, int]]]] = []
@@ -28,7 +33,7 @@ def gene_range_tuples_callback(
         else:
             if cur_gene and cur_ranges:
                 if len(cur_ranges) % 2 != 0:
-                    raise click.ClickException(
+                    raise typer.BadParameter(
                         'Missing paired range values: <GENE>{}'
                         .format(cur_gene)
                     )
@@ -36,12 +41,12 @@ def gene_range_tuples_callback(
 
                 for refstart, refend in chunked(cur_ranges, 2):
                     if refstart < 1:
-                        raise click.ClickException(
+                        raise typer.BadParameter(
                             'argument <REF_START>:{} must be not less than 1'
                             .format(refstart)
                         )
                     if refend - 2 < refstart:
-                        raise click.ClickException(
+                        raise typer.BadParameter(
                             'no enough codon between arguments <REF_START>'
                             ':{} and <REF_END>:{}'
                             .format(refstart, refend)
@@ -100,20 +105,18 @@ class Payload(TypedDict):
 
 
 @cli.command('save-json')
-@click.argument(
-    'gene_range_tuples',
-    callback=gene_range_tuples_callback,
-    nargs=-1
-)
 def save_json(
-    gene_range_tuples: List[Tuple[str, List[Tuple[int, int]]]]
+    gene_range_tuples: Annotated[
+        GeneRanges,
+        typer.Argument(..., callback=gene_range_tuples_callback),
+    ],
 ) -> Processor[Iterable[str]]:
-    """Save as NucAmino style JSON reports
+    """Save as NucAmino style JSON reports.
 
-    <GENE_RANGE_TUPLES>:
-        2n+1-tuples of
-        <GENE> <REF_START1> <REF_END1> <REF_START2> <REF_END2> ...
-        Use to calculate codon position within the protein/gene.
+    :param gene_range_tuples: 2n+1 tuples of
+        ``<GENE> <REF_START1> <REF_END1> <REF_START2> <REF_END2> ...`` used
+        to calculate codon positions within the protein or gene.
+    :returns: Processor yielding JSON report fragments.
     """
     num_indent: int = 2
 
