@@ -1,10 +1,5 @@
 import re
-from typing import (
-    TypeVar,
-    Generic,
-    Union,
-    Any
-)
+from typing import TypeVar, Generic, Union, Any
 from collections.abc import Generator
 
 from .na_position import NAPosition

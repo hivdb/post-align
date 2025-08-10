@@ -1,10 +1,9 @@
 import cython  # type: ignore
-from typing import Union
 
 from .na_position import NAPosition
 from .aa_position import AAPosition
 
-Position = Union[NAPosition, AAPosition]
+Position = NAPosition | AAPosition
 
 SKIP_VALIDATION = object()
 

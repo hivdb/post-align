@@ -1,7 +1,5 @@
 import cython  # type: ignore
-from typing import (
-    Any
-)
+from typing import Any
 from collections.abc import ByteString
 from itertools import zip_longest
 from .position_flag import PositionFlag
