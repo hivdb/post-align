@@ -4,7 +4,8 @@ import orjson
 # import math
 import typer
 from textwrap import indent
-from typing import Annotated, Dict, Iterable, List, Optional, Tuple, TypedDict
+from typing import Annotated, TypedDict
+from collections.abc import Iterable
 from more_itertools import chunked
 
 from ..cli import cli
@@ -14,18 +15,18 @@ from ..models import RefSeqPair, NAPosition, Sequence, PositionFlag, Message
 from ..processor import Processor, output_processor
 
 
-GeneRanges = List[Tuple[str, List[Tuple[int, int]]]]
+GeneRanges = list[tuple[str, list[tuple[int, int]]]]
 
 
 def gene_range_tuples_callback(
     ctx: typer.Context,
     param: typer.CallbackParam,
-    value: Tuple[str, ...],
-) -> List[Tuple[str, List[Tuple[int, int]]]]:
+    value: tuple[str, ...],
+) -> list[tuple[str, list[tuple[int, int]]]]:
     one: str
-    tuples: List[Tuple[str, List[Tuple[int, int]]]] = []
+    tuples: list[tuple[str, list[tuple[int, int]]]] = []
     cur_gene: str = ''
-    cur_ranges: List[int] = []
+    cur_ranges: list[int] = []
     # use $$ as the end, it never goes into the results
     for one in value + ('$$', ):
         if one.isdigit():
@@ -37,7 +38,7 @@ def gene_range_tuples_callback(
                         'Missing paired range values: <GENE>{}'
                         .format(cur_gene)
                     )
-                cur_range_chunks: List[Tuple[int, int]] = []
+                cur_range_chunks: list[tuple[int, int]] = []
 
                 for refstart, refend in chunked(cur_ranges, 2):
                     if refstart < 1:
@@ -71,7 +72,7 @@ class CodonPair(TypedDict):
 
 class AlignedSite(TypedDict):
     PosAA: int
-    PosNAs: List[Optional[int]]
+    PosNAs: list[int | None]
     LengthNA: int
 
 
@@ -79,16 +80,16 @@ class AlignedSite(TypedDict):
 class FrameShift(TypedDict, total=False):
     Position: int
     GapLength: int
-    NucleicAcidsText: Optional[str]
+    NucleicAcidsText: str | None
     IsInsertion: int
 
 
 class GeneReportInner(TypedDict, total=False):
     FirstAA: int
     LastAA: int
-    AlignedSites: List[AlignedSite]
-    Mutations: List[CodonPair]
-    FrameShifts: List[FrameShift]
+    AlignedSites: list[AlignedSite]
+    Mutations: list[CodonPair]
+    FrameShifts: list[FrameShift]
 
 
 class GeneReport(TypedDict):
@@ -99,9 +100,9 @@ class GeneReport(TypedDict):
 
 class Payload(TypedDict):
     Name: str
-    Modifiers: List[List[str]]
-    GeneReports: List[GeneReport]
-    Messages: List[Dict[str, str]]
+    Modifiers: list[list[str]]
+    GeneReports: list[GeneReport]
+    Messages: list[dict[str, str]]
 
 
 @cli.command('save-json')
@@ -123,15 +124,15 @@ def save_json(
     @output_processor('save-json')
     def processor(
         iterator: Iterable[RefSeqPair],
-        messages: List[Message]
+        messages: list[Message]
     ) -> Iterable[str]:
         # TODO: MSA remap?
         refseq: Sequence
         seq: Sequence
         yield '[\n'
         for idx, (refseq, seq) in enumerate(iterator):
-            reftext: List[NAPosition] = refseq.seqtext
-            seqtext: List[NAPosition] = seq.seqtext
+            reftext: list[NAPosition] = refseq.seqtext
+            seqtext: list[NAPosition] = seq.seqtext
             seqmessages = [m for m in messages if m.seqid == seq.seqid]
 
             payload: Payload = {
@@ -142,25 +143,25 @@ def save_json(
                 'Messages': [m.to_dict() for m in seqmessages]
             }
 
-            gene_codons: List[
-                Tuple[
+            gene_codons: list[
+                tuple[
                     str,
-                    List[List[NAPosition]],
-                    List[List[NAPosition]]
+                    list[list[NAPosition]],
+                    list[list[NAPosition]]
                 ]
             ] = group_by_gene_codons(
                 reftext, seqtext, gene_range_tuples)
 
             gene: str
-            refcodons: List[List[NAPosition]]
-            seqcodons: List[List[NAPosition]]
+            refcodons: list[list[NAPosition]]
+            seqcodons: list[list[NAPosition]]
             for gene, refcodons, seqcodons in gene_codons:
                 pos0: int
-                refcd: List[NAPosition]
-                seqcd: List[NAPosition]
-                codonpairs: List[CodonPair] = []
-                aligned_sites: List[AlignedSite] = []
-                frameshifts: List[FrameShift] = []
+                refcd: list[NAPosition]
+                seqcd: list[NAPosition]
+                codonpairs: list[CodonPair] = []
+                aligned_sites: list[AlignedSite] = []
+                frameshifts: list[FrameShift] = []
 
                 trim_slice: slice = find_codon_trim_slice(seqcodons)
 
@@ -199,7 +200,7 @@ def save_json(
                         'IsInsertion': len(refcd) > 5,
                         'IsDeletion': codon_text == '---'
                     })
-                    posnas: List[Optional[int]] = []
+                    posnas: list[int | None] = []
                     for na in seqcd:
                         pos: int = na.pos
                         posnas.append(pos if pos > -1 else None)
@@ -222,7 +223,7 @@ def save_json(
                             'GapLength': del_fs_len,
                             'IsInsertion': False
                         })
-                mutations: List[CodonPair] = [
+                mutations: list[CodonPair] = [
                     cd for cd in codonpairs
                     if cd['RefAminoAcidText'] != cd['AminoAcidText'] or
                     cd['IsInsertion']

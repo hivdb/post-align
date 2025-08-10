@@ -1,21 +1,20 @@
 import cython  # type: ignore
-from typing import Optional, Tuple, List
 from ..models import NAPosition
 
 
 @cython.ccall
 @cython.returns(tuple)
 def group_by_codons(
-    refnas: List[NAPosition],
-    seqnas: List[NAPosition]
-) -> Tuple[
-    List[List[NAPosition]],
-    List[List[NAPosition]]
+    refnas: list[NAPosition],
+    seqnas: list[NAPosition]
+) -> tuple[
+    list[list[NAPosition]],
+    list[list[NAPosition]]
 ]:
-    refcodons: List[List[NAPosition]] = []
-    seqcodons: List[List[NAPosition]] = []
-    lastrefcodon: Optional[List[NAPosition]] = None
-    lastseqcodon: Optional[List[NAPosition]] = None
+    refcodons: list[list[NAPosition]] = []
+    seqcodons: list[list[NAPosition]] = []
+    lastrefcodon: list[NAPosition] | None = None
+    lastseqcodon: list[NAPosition] | None = None
     bp = -1
     for refna, seqna in zip(refnas, seqnas):
         if not refna.is_gap:
@@ -35,7 +34,7 @@ def group_by_codons(
 @cython.ccall
 @cython.returns(slice)
 def find_codon_trim_slice(
-    codons: List[List[NAPosition]]
+    codons: list[list[NAPosition]]
 ) -> slice:
     left_trim: int = 0
     for idx, codon in enumerate(codons):
@@ -56,23 +55,23 @@ def find_codon_trim_slice(
 @cython.ccall
 @cython.returns(list)
 def group_by_gene_codons(
-    refnas: List[NAPosition],
-    seqnas: List[NAPosition],
-    gene_range_tuples: List[Tuple[str, List[Tuple[int, int]]]]
-) -> List[
-    Tuple[
+    refnas: list[NAPosition],
+    seqnas: list[NAPosition],
+    gene_range_tuples: list[tuple[str, list[tuple[int, int]]]]
+) -> list[
+    tuple[
         str,
-        List[List[NAPosition]],
-        List[List[NAPosition]]
+        list[list[NAPosition]],
+        list[list[NAPosition]]
     ]
 ]:
     gene: str
-    ranges: List[Tuple[int, int]]
-    results: List[
-        Tuple[
+    ranges: list[tuple[int, int]]
+    results: list[
+        tuple[
             str,
-            List[List[NAPosition]],
-            List[List[NAPosition]]
+            list[list[NAPosition]],
+            list[list[NAPosition]]
         ]
     ] = []
 

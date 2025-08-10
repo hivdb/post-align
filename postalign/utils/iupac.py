@@ -1,7 +1,6 @@
 import cython  # type: ignore
-from typing import Dict, Set
 
-IUPAC: Dict[int, Set[int]] = {
+IUPAC: dict[int, set[int]] = {
     ord(b'A'): set(b'A'),
     ord(b'C'): set(b'C'),
     ord(b'G'): set(b'G'),
@@ -33,6 +32,6 @@ def iupac_score(
     elif na_a == na_b:
         return 1
     else:
-        expand_a: Set[int] = IUPAC[na_a]
-        expand_b: Set[int] = IUPAC[na_b]
+        expand_a: set[int] = IUPAC[na_a]
+        expand_b: set[int] = IUPAC[na_b]
         return - len(expand_a ^ expand_b) / len(expand_a | expand_b)

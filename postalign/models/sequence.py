@@ -1,15 +1,6 @@
 import re
-from typing import (
-    Tuple,
-    Type,
-    TypeVar,
-    Generic,
-    Optional,
-    List,
-    Union,
-    Any,
-    Generator
-)
+from typing import TypeVar, Generic, Union, Any
+from collections.abc import Generator
 
 from .na_position import NAPosition
 from .aa_position import AAPosition
@@ -25,27 +16,38 @@ Position = TypeVar('Position', NAPosition, AAPosition)
 
 
 class Sequence(Generic[Position]):
+    """Biological sequence with associated position objects."""
+
     header: str
     description: str
-    seqtext: List[Position]
+    seqtext: list[Position]
     seqid: int
-    seqtype: Type[Position]
+    seqtype: type[Position]
     abs_seqstart: int
-    modifiers_: Optional[ModifierLinkedList]
+    modifiers_: ModifierLinkedList | None
 
     def __init__(
         self: 'Sequence', *,
         header: str,
         description: str,
-        seqtext: List[Position],
+        seqtext: list[Position],
         seqid: int,
-        seqtype: Type[Position],
+        seqtype: type[Position],
         abs_seqstart: int,
-        modifiers_: Optional[ModifierLinkedList] = None,
-        skip_invalid: Union[bool, object] = True
+        modifiers_: ModifierLinkedList | None = None,
+        skip_invalid: bool | object = True
     ) -> None:
-        one: Position
+        """Initialize a sequence instance.
 
+        :param header: Sequence header.
+        :param description: Sequence description.
+        :param seqtext: Ordered position objects.
+        :param seqid: Numerical sequence identifier.
+        :param seqtype: Position type class.
+        :param abs_seqstart: Absolute start index.
+        :param modifiers_: Optional modifier list.
+        :param skip_invalid: Whether to skip validation.
+        """
         if skip_invalid is not SKIP_VALIDATION:
             seqtext = sanitize_sequence(seqtext, seqtype, header, skip_invalid)
 
@@ -59,7 +61,7 @@ class Sequence(Generic[Position]):
 
     @property
     def seqtext_as_str(self: 'Sequence') -> str:
-        seqtype: Type[Position] = self.seqtype
+        seqtype: type[Position] = self.seqtype
         return seqtype.as_str(self.seqtext)
 
     @property
@@ -78,22 +80,22 @@ class Sequence(Generic[Position]):
 
     def __getitem__(
         self: 'Sequence',
-        index: Union[int, slice]
+        index: int | slice
     ) -> Union[Position, 'Sequence']:
-        seqtext: List[Position] = self.seqtext
+        seqtext: list[Position] = self.seqtext
         if isinstance(index, slice):
             seqtext = seqtext[index]
-            seqtype: Type[Position] = self.seqtype
+            seqtype: type[Position] = self.seqtype
             start: int
             end: int
             slice_remain_len: int
             accum_len: int
-            slicetuples: List[Tuple[int, int]]
-            prevslicetuples: List[Tuple[int, int]]
+            slicetuples: list[tuple[int, int]]
+            prevslicetuples: list[tuple[int, int]]
             modtext: str
             modifiers: ModifierLinkedList
             replace_flag: bool = True
-            sliceval: Tuple[int, int, int] = index.indices(len(self.seqtext))
+            sliceval: tuple[int, int, int] = index.indices(len(self.seqtext))
             if sliceval[2] == 1:
                 prevslicetuples = self.modifiers.last_modifier.slicetuples
                 if not prevslicetuples:
@@ -121,7 +123,7 @@ class Sequence(Generic[Position]):
                     )
             else:
                 raise ValueError(
-                    'step slicing is not supported: {!r}'.format(index)
+                    f'step slicing is not supported: {index!r}'
                 )
             if replace_flag:
                 modifiers = self.modifiers.replace_last(
@@ -176,7 +178,7 @@ class Sequence(Generic[Position]):
 
     def push_seqtext(
         self: 'Sequence',
-        seqtext: List[Position],
+        seqtext: list[Position],
         modtext: str,
         start_offset: int,
         **kw: Any
@@ -202,7 +204,7 @@ class Sequence(Generic[Position]):
 
     def replace_seqtext(
         self: 'Sequence',
-        seqtext: List[Position],
+        seqtext: list[Position],
         modtext: str,
         start_offset: int,
         **kw: Any
@@ -231,9 +233,9 @@ class Sequence(Generic[Position]):
     def header_with_modifiers(self: 'Sequence') -> str:
         modtext: str = str(self.modifiers)
         if modtext:
-            return '{} MOD::{}'.format(self.header, self.modifiers)
+            return f'{self.header} MOD::{self.modifiers}'
         else:
             return self.header
 
 
-RefSeqPair = Tuple[Sequence, Sequence]
+RefSeqPair = tuple[Sequence, Sequence]

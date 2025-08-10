@@ -4,13 +4,9 @@ import sys
 from enum import Enum
 from typing import (
     Annotated,
-    Iterable,
-    List,
-    Optional,
     TextIO,
-    Type,
-    Union,
 )
+from collections.abc import Iterable
 
 import typer
 from typer import FileText, FileTextWrite
@@ -37,7 +33,7 @@ def reference_callback(
     ctx: typer.Context,
     param: typer.CallbackParam,
     value: str,
-) -> Union[TextIO, str]:
+) -> TextIO | str:
     """Pre-process ``-r/--reference`` input.
 
     :param ctx: Typer execution context.
@@ -49,7 +45,7 @@ def reference_callback(
     """
     if not param.name:
         raise typer.BadParameter('Internal error (reference_callback:1)')
-    retvalue: Union[TextIO, str]
+    retvalue: TextIO | str
     alignment_format: AlignmentFormat = ctx.params['alignment_format']
     try:
         retvalue = open(value)
@@ -70,8 +66,8 @@ def reference_callback(
 def seqs_prior_alignment_callback(
     ctx: typer.Context,
     param: typer.CallbackParam,
-    value: Optional[TextIO],
-) -> Optional[TextIO]:
+    value: TextIO | None,
+) -> TextIO | None:
     """Pre-process ``-p/--seqs-prior-alignment`` input.
 
     :param ctx: Typer execution context.
@@ -128,7 +124,7 @@ def main(
         ),
     ],
     reference: Annotated[
-        Union[TextIO, str],
+        TextIO | str,
         typer.Option(
             ..., '-r', '--reference',
             callback=reference_callback,
@@ -140,7 +136,7 @@ def main(
         ),
     ],
     seqs_prior_alignment: Annotated[
-        Optional[FileText],
+        FileText | None,
         typer.Option(
             None,
             '-p', '--seqs-prior-alignment',
@@ -173,7 +169,7 @@ def main(
         ),
     ] = False,
     minimap2_opts: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             None, '--minimap2-opts',
             help=(
@@ -196,13 +192,12 @@ def main(
     :param enable_profile: Enable cProfile.
     :param minimap2_opts: Options passed to the minimap2 command.
     """
-    pass
 
 
 def call_processors(
-    processors: List[Processor],
+    processors: list[Processor],
     iterator: Iterable[RefSeqPair],
-    messages: List[Message]
+    messages: list[Message]
 ) -> Iterable[str]:
     """Run processors sequentially.
 
@@ -218,7 +213,7 @@ def call_processors(
     return last_processor(iterator, messages)
 
 
-def check_processors(processors: List[Processor]) -> None:
+def check_processors(processors: list[Processor]) -> None:
     """Validate processor pipeline configuration.
 
     :param processors: Sequence of processors to execute.
@@ -232,7 +227,7 @@ def check_processors(processors: List[Processor]) -> None:
             'The last pipeline command {!r} is not an output method'
             .format(last_processor.command_name)
         )
-    extra_output_commands: List[str] = []
+    extra_output_commands: list[str] = []
     for processor in processors[:-1]:
         if processor.is_output_command:
             extra_output_commands.append(processor.command_name)
@@ -246,16 +241,16 @@ def check_processors(processors: List[Processor]) -> None:
 # type: ignore[attr-defined]
 @cli.result_callback()  # type: ignore[attr-defined]
 def process_pipeline(
-    processors: List[Processor],
+    processors: list[Processor],
     input_alignment: TextIO,
-    seqs_prior_alignment: Optional[TextIO],
+    seqs_prior_alignment: TextIO | None,
     output: TextIO,
     alignment_format: AlignmentFormat,
-    reference: Union[TextIO, str],
+    reference: TextIO | str,
     nucleotides: bool,
     verbose: bool,
     enable_profile: bool,
-    minimap2_opts: Optional[str],
+    minimap2_opts: str | None,
 ) -> None:
     """Execute the processor pipeline.
 
@@ -271,10 +266,10 @@ def process_pipeline(
     :param minimap2_opts: Additional minimap2 options.
     :raises typer.BadParameter: On invalid configuration or unsupported format.
     """
-    seqtype: Type[NAPosition] = NAPosition
+    seqtype: type[NAPosition] = NAPosition
     iterator: Iterable[RefSeqPair]
     check_processors(processors)
-    messages: List[Message] = []
+    messages: list[Message] = []
 
     if not nucleotides:
         raise typer.BadParameter(

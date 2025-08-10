@@ -1,7 +1,8 @@
 """MSA parser utilities."""
 
 import typer
-from typing import Type, TextIO, Generator, Iterable
+from typing import TextIO
+from collections.abc import Generator, Iterable
 from itertools import tee
 
 from ..models import RefSeqPair, Sequence, Position
@@ -12,7 +13,7 @@ from . import fasta
 def load(
     msafp: TextIO,
     reference: str,
-    seqtype: Type[Position]
+    seqtype: type[Position]
 ) -> Generator[RefSeqPair, None, None]:
     ref_finder: Iterable[Sequence]
     sequences: Iterable[Sequence] = fasta.load(msafp, seqtype)

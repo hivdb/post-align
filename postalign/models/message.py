@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Dict
 
 
 class MessageLevel(Enum):
@@ -16,12 +15,12 @@ class Message:
         self.message = message
 
     def __str__(self) -> str:
-        return '[{}] {}:{}'.format(self.level.name, self.seqid, self.message)
+        return f'[{self.level.name}] {self.seqid}:{self.message}'
 
     def __repr__(self) -> str:
-        return '<Message {}>'.format(self)
+        return f'<Message {self}>'
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> dict[str, str]:
         return {
             'level': self.level.name,
             'message': self.message

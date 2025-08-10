@@ -5,7 +5,8 @@ from io import StringIO
 from pathlib import Path
 from subprocess import Popen, TimeoutExpired, PIPE
 from tempfile import TemporaryDirectory
-from typing import TextIO, List, Iterable, Type
+from typing import TextIO
+from collections.abc import Iterable
 
 from . import fasta, paf
 from ..models import Message
@@ -17,10 +18,10 @@ DEFAULT_TIMEOUT = 300
 def load(
     fastafp: TextIO,
     reference: TextIO,
-    seqtype: Type[Position],
-    messages: List[Message],
+    seqtype: type[Position],
+    messages: list[Message],
     *,
-    minimap2_execute: List[str] = ['minimap2']
+    minimap2_execute: list[str] = ['minimap2']
 ) -> Iterable[RefSeqPair]:
     dirname: str
     minimap2_execute = [*minimap2_execute]  # copy in case of overwriting
@@ -58,7 +59,7 @@ def load(
             outs, errs = proc.communicate()
         if proc.returncode != 0:
             raise typer.BadParameter(
-                'Error happened during executing minimap2: {}'.format(errs)
+                f'Error happened during executing minimap2: {errs}'
             )
         paffp = StringIO(outs)
         return paf.load(paffp, seqpath.open(),

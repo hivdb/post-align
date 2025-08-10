@@ -1,12 +1,10 @@
 #! /usr/bin/env python
-# -*- coding: UTF-8 -*-
 
 import os
 import re
 import ast
 import setuptools
 from Cython.Build import cythonize  # type: ignore
-from typing import Optional, List, Set
 from setuptools.extension import Extension
 
 version: str
@@ -50,7 +48,7 @@ extensions = [
 ]
 
 with open('postalign/version.py', 'rb') as f:
-    match: Optional[re.Match] = _version_re.search(
+    match: re.Match | None = _version_re.search(
         f.read().decode('utf-8'))
     if match:
         version = str(ast.literal_eval(match.group(1)))
@@ -64,10 +62,10 @@ def strip_comments(line: str) -> str:
     return line.split('#', 1)[0].strip()
 
 
-def req(filename: str) -> List[str]:
+def req(filename: str) -> list[str]:
     with open(os.path.join(os.getcwd(), filename)) as fp:
-        requires: Set[str] = set([strip_comments(ln) for ln in fp.readlines()])
-        requires -= set([''])
+        requires: set[str] = {strip_comments(ln) for ln in fp.readlines()}
+        requires -= {''}
     return list(requires)
 
 
