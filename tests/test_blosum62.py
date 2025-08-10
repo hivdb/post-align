@@ -24,3 +24,10 @@ def test_blosum62_unknown_amino_acid() -> None:
     from postalign.utils.blosum62 import blosum62_score
 
     assert blosum62_score(b"Z", b"Z") == 0
+
+
+def test_blosum62_empty_sequences() -> None:
+    """Empty inputs should yield a zero score without division by zero."""
+    from postalign.utils.blosum62 import blosum62_score
+
+    assert blosum62_score(b"", b"") == 0

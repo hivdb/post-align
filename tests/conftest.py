@@ -54,3 +54,13 @@ def cython_shim() -> Generator[None, None, None]:
         sys, "path", new_path
     ):
         yield
+
+
+@pytest.fixture(autouse=True)
+def pafpy_shim() -> Generator[None, None, None]:
+    """Provide a minimal :mod:`pafpy` shim for parser imports."""
+    fake_pafpy = types.ModuleType("pafpy")
+    fake_pafpy.PafRecord = object  # type: ignore[attr-defined]
+    fake_pafpy.Strand = object  # type: ignore[attr-defined]
+    with patch.dict(sys.modules, {"pafpy": fake_pafpy}):
+        yield
