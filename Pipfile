@@ -14,7 +14,7 @@ more-itertools = "*"
 pafpy = "*"
 types-setuptools = "*"
 cython = "*"
-orjson = "*"
+orjson = ">3.10.0"
 
 [requires]
-python_version = "3.11"
+python_version = "3.13"

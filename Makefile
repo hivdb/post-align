@@ -1,5 +1,5 @@
 requirements.txt: Pipfile.lock
-	@pipenv requirements > requirements.txt
+	@pipenv requirements --from-pipfile > requirements.txt
 	@sed -i '' '/^-e \.$$/d' requirements.txt
 
 build-docker-builder: requirements.txt
