@@ -660,6 +660,9 @@ def codon_alignment(
             ),
         ),
     ] = 10,
+    # For NASize, 0 means any size
+    #                        Indel         NAPos NASize Score
+    #                          v              v     v     v
     gap_placement_score: Annotated[
         Dict[int, Dict[Tuple[int, int], int]],
         typer.Option(
@@ -683,6 +686,9 @@ def codon_alignment(
     ] = {},
     ref_start: Annotated[int, typer.Argument()] = 1,
     ref_end: Annotated[int, typer.Argument()] = -1,
+    # XXX: see https://github.com/cython/cython/issues/2753
+    # this has been fixed by cython 3.0
+    # ) -> Processor[Iterable[RefSeqPair]]:
 ) -> Processor:
     """Codon alignment.
 
