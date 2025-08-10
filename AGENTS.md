@@ -37,7 +37,7 @@ pipenv run flake8 .
 pipenv run mypy .
 
 # Tests + coverage
-pipenv run pytest --cov=codfreq --cov-report=term-missing
+pipenv run pytest --cov=postalign --cov-report=term-missing
 
 # Update Pipfile.lock
 pipenv lock --dev --clear
@@ -52,7 +52,7 @@ make requirements.txt
   1. `pip install -e .[dev]`
   2. `flake8 .`
   3. `mypy .`
-  4. `pytest --cov=codfreq --cov-report=xml` (record artifact, enforce threshold)
+  4. `pytest --cov=postalign --cov-report=xml` (record artifact, enforce threshold)
 
 ## Sphinx docstring style (minimal rules)
 - Use Sphinx fields: `:param name:`, `:type name:`, `:returns:`, `:rtype:`, `:raises:`.
