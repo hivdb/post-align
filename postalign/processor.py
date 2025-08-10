@@ -1,4 +1,5 @@
-from typing import Callable, Iterable, Generic, TypeVar, List
+from typing import Generic, TypeVar
+from collections.abc import Callable, Iterable
 from .models import Message
 from .models.sequence import RefSeqPair
 
@@ -10,7 +11,7 @@ class Processor(Generic[ReturnType]):
     command_name: str
     is_output_command: bool
     _processor: Callable[
-        [Iterable[RefSeqPair], List[Message]],
+        [Iterable[RefSeqPair], list[Message]],
         ReturnType
     ]
 
@@ -19,7 +20,7 @@ class Processor(Generic[ReturnType]):
         command_name: str,
         is_output_command: bool,
         processor: Callable[
-            [Iterable[RefSeqPair], List[Message]],
+            [Iterable[RefSeqPair], list[Message]],
             ReturnType
         ]
     ) -> None:
@@ -30,18 +31,18 @@ class Processor(Generic[ReturnType]):
         setattr(self, '_processor', processor)
 
     def __call__(
-        self, iterator: Iterable[RefSeqPair], messages: List[Message]
+        self, iterator: Iterable[RefSeqPair], messages: list[Message]
     ) -> ReturnType:
         return self._processor(iterator, messages)  # type: ignore
 
 
 def output_processor(command_name: str) -> Callable[
-    [Callable[[Iterable[RefSeqPair], List[Message]], Iterable[str]]],
+    [Callable[[Iterable[RefSeqPair], list[Message]], Iterable[str]]],
     Processor[Iterable[str]]
 ]:
 
     def wrapper(processor: Callable[
-        [Iterable[RefSeqPair], List[Message]], Iterable[str]
+        [Iterable[RefSeqPair], list[Message]], Iterable[str]
     ]) -> Processor[Iterable[str]]:
         return Processor(command_name, True, processor)
 
@@ -50,13 +51,13 @@ def output_processor(command_name: str) -> Callable[
 
 def intermediate_processor(command_name: str) -> Callable[
     [Callable[
-        [Iterable[RefSeqPair], List[Message]], Iterable[RefSeqPair]
+        [Iterable[RefSeqPair], list[Message]], Iterable[RefSeqPair]
     ]],
     Processor[Iterable[RefSeqPair]]
 ]:
 
     def wrapper(processor: Callable[
-        [Iterable[RefSeqPair], List[Message]], Iterable[RefSeqPair]
+        [Iterable[RefSeqPair], list[Message]], Iterable[RefSeqPair]
     ]) -> Processor[Iterable[RefSeqPair]]:
         return Processor(command_name, False, processor)
 

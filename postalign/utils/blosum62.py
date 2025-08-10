@@ -1,8 +1,7 @@
 import cython  # type: ignore
-from typing import Dict, Tuple
 from itertools import product
 
-BLOSUM62: Dict[Tuple[int, ...], int] = {
+BLOSUM62: dict[tuple[int, ...], int] = {
     tuple(b'AA'): 4,
     tuple(b'AC'): 0,
     tuple(b'AD'): -2,

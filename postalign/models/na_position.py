@@ -1,17 +1,13 @@
 import cython  # type: ignore
 from typing import (
-    Any,
-    List,
-    Tuple,
-    ByteString,
-    Optional,
-    Type
+    Any
 )
+from collections.abc import ByteString
 from itertools import zip_longest
 from .position_flag import PositionFlag
 
 GAP_CHAR: int = ord(b'-')
-GAP_CHARS: Tuple[int, ...] = tuple(b'-.')
+GAP_CHARS: tuple[int, ...] = tuple(b'-.')
 
 FIRST: cython.int = 0
 LAST: cython.int = 1
@@ -19,10 +15,10 @@ LAST: cython.int = 1
 
 @cython.ccall
 @cython.returns(list)
-def enumerate_seq_pos(seq_text: bytes) -> List[int]:
+def enumerate_seq_pos(seq_text: bytes) -> list[int]:
     na: int
     offset: int = 1
-    seq_pos: List[int] = []
+    seq_pos: list[int] = []
     for na in seq_text:
         if na in GAP_CHARS:
             seq_pos.append(-1)
@@ -35,7 +31,7 @@ def enumerate_seq_pos(seq_text: bytes) -> List[int]:
 @cython.cfunc
 @cython.inline
 def _pos2index(
-    nas: List['NAPosition'],
+    nas: list['NAPosition'],
     pos: cython.int,
     first: cython.int
 ) -> cython.int:
@@ -59,11 +55,11 @@ def _pos2index(
 @cython.ccall
 @cython.returns(tuple)
 def _posrange2indexrange(
-    nas: List['NAPosition'],
+    nas: list['NAPosition'],
     pos_start: int,
     pos_end: int,
     include_boundary_gaps: bool = False
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     idx_start: int
     idx_end: int
     max_pos: int = NAPosition.max_pos(nas)
@@ -136,9 +132,9 @@ class NAPosition:
 
     @classmethod
     def init_gaps(
-        cls: Type['NAPosition'],
+        cls: type['NAPosition'],
         gaplen: int
-    ) -> List['NAPosition']:
+    ) -> list['NAPosition']:
         return [
             cls(GAP_CHAR, -1, PositionFlag.NONE)
             for _ in range(gaplen)
@@ -146,12 +142,16 @@ class NAPosition:
 
     @classmethod
     def init_from_bytes(
-        cls: Type['NAPosition'],
+        cls: type['NAPosition'],
         seq_text: ByteString,
-        seq_payload: Optional[List] = None
-    ) -> List['NAPosition']:
-        na: int
-        pos: int
+        seq_payload: list | None = None
+    ) -> list['NAPosition']:
+        """Generate positions from raw sequence bytes.
+
+        :param seq_text: Raw nucleotide sequence data.
+        :param seq_payload: Optional per-position payload.
+        :returns: List of initialized positions.
+        """
         seq_text = bytes(seq_text).upper()
         if seq_payload is None:
             seq_payload = []
@@ -165,16 +165,24 @@ class NAPosition:
         ]
 
     @staticmethod
-    def min_pos(nas: List['NAPosition']) -> int:
-        na: NAPosition
+    def min_pos(nas: list['NAPosition']) -> int:
+        """Return the smallest positive position.
+
+        :param nas: Positions to inspect.
+        :returns: Minimum non-zero position or ``-1`` if none found.
+        """
         for na in nas:
             if na.pos > 0:
                 return na.pos
         return -1
 
     @staticmethod
-    def max_pos(nas: List['NAPosition']) -> int:
-        na: NAPosition
+    def max_pos(nas: list['NAPosition']) -> int:
+        """Return the largest positive position.
+
+        :param nas: Positions to inspect.
+        :returns: Maximum non-zero position or ``-1`` if none found.
+        """
         for na in reversed(nas):
             if na.pos > 0:
                 return na.pos
@@ -182,11 +190,17 @@ class NAPosition:
 
     @staticmethod
     def min_nongap_index(
-        nas: List['NAPosition'],
+        nas: list['NAPosition'],
         start: int = -1,
         stop: int = -1
     ) -> int:
-        na: NAPosition
+        """Index of first non-gap position.
+
+        :param nas: Positions to inspect.
+        :param start: Optional starting index.
+        :param stop: Optional stopping index.
+        :returns: Index of first non-gap or ``-1`` if none found.
+        """
         for idx, na in enumerate(nas):
             if start > -1 and idx < start:
                 continue
@@ -198,11 +212,17 @@ class NAPosition:
 
     @staticmethod
     def max_nongap_index(
-        nas: List['NAPosition'],
+        nas: list['NAPosition'],
         start: int = -1,
         stop: int = -1
     ) -> int:
-        na: NAPosition
+        """Index of last non-gap position.
+
+        :param nas: Positions to inspect.
+        :param start: Optional starting index.
+        :param stop: Optional stopping index.
+        :returns: Index of last non-gap or ``-1`` if none found.
+        """
         length = len(nas)
         for revidx, na in enumerate(reversed(nas)):
             idx = length - 1 - revidx
@@ -215,21 +235,35 @@ class NAPosition:
         return -1
 
     @staticmethod
-    def set_flag(nas: List['NAPosition'], flag: PositionFlag) -> None:
-        na: NAPosition
+    def set_flag(nas: list['NAPosition'], flag: PositionFlag) -> None:
+        """Apply a flag to all positions.
+
+        :param nas: Positions to modify.
+        :param flag: Flag to set.
+        """
         for na in nas:
             na.flag |= flag
 
     @staticmethod
-    def any_has_flag(nas: List['NAPosition'], flag: PositionFlag) -> bool:
-        na: NAPosition
+    def any_has_flag(nas: list['NAPosition'], flag: PositionFlag) -> bool:
+        """Check if any position has a specific flag.
+
+        :param nas: Positions to inspect.
+        :param flag: Flag to test.
+        :returns: ``True`` if any position has the flag.
+        """
         return any([
             flag & na.flag for na in nas
         ])
 
     @staticmethod
-    def all_have_flag(nas: List['NAPosition'], flag: PositionFlag) -> bool:
-        na: NAPosition
+    def all_have_flag(nas: list['NAPosition'], flag: PositionFlag) -> bool:
+        """Check if all positions have a specific flag.
+
+        :param nas: Positions to inspect.
+        :param flag: Flag to test.
+        :returns: ``True`` if all positions have the flag.
+        """
         return all([
             flag & na.flag for na in nas
         ])
@@ -237,42 +271,66 @@ class NAPosition:
     posrange2indexrange = _posrange2indexrange
 
     @staticmethod
-    def count_gaps(nas: List['NAPosition']) -> int:
-        na: NAPosition
+    def count_gaps(nas: list['NAPosition']) -> int:
+        """Count gap positions.
+
+        :param nas: Positions to inspect.
+        :returns: Number of gaps.
+        """
         return sum([na.is_gap for na in nas])
 
     @staticmethod
-    def count_nongaps(nas: List['NAPosition']) -> int:
-        na: NAPosition
+    def count_nongaps(nas: list['NAPosition']) -> int:
+        """Count non-gap positions.
+
+        :param nas: Positions to inspect.
+        :returns: Number of non-gaps.
+        """
         return sum([not na.is_gap for na in nas])
 
     @staticmethod
     def remove_gaps(
-        nas: List['NAPosition']
-    ) -> List['NAPosition']:
-        na: NAPosition
+        nas: list['NAPosition']
+    ) -> list['NAPosition']:
+        """Filter out gap positions.
+
+        :param nas: Positions to inspect.
+        :returns: List without gap positions.
+        """
         return [na for na in nas if not na.is_gap]
 
     @staticmethod
     def as_bytes(
-        nas: List['NAPosition']
+        nas: list['NAPosition']
     ) -> bytes:
-        na: NAPosition
+        """Serialize positions as raw bytes.
+
+        :param nas: Positions to convert.
+        :returns: Sequence encoded as bytes.
+        """
         return bytes([na.notation for na in nas])
 
     @classmethod
     def as_str(
-        cls: Type['NAPosition'],
-        nas: List['NAPosition']
+        cls: type['NAPosition'],
+        nas: list['NAPosition']
     ) -> str:
         return str(cls.as_bytes(nas), 'ASCII')
 
     @staticmethod
-    def any_has_gap(nas: List['NAPosition']) -> bool:
-        na: NAPosition
+    def any_has_gap(nas: list['NAPosition']) -> bool:
+        """Check if any position is a gap.
+
+        :param nas: Positions to inspect.
+        :returns: ``True`` if any gap is present.
+        """
         return any([na.is_gap for na in nas])
 
     @staticmethod
-    def all_have_gap(nas: List['NAPosition']) -> bool:
-        na: NAPosition
+    def all_have_gap(nas: list['NAPosition']) -> bool:
+        """Check if all positions are gaps.
+
+        :param nas: Positions to inspect.
+        :returns: ``True`` if all are gaps.
+        """
         return all([na.is_gap for na in nas])

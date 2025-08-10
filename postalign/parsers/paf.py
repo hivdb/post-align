@@ -1,7 +1,8 @@
 from copy import deepcopy
 from collections import defaultdict
 from pafpy import PafRecord, Strand  # type: ignore
-from typing import Type, Iterable, TextIO, List, Dict, Tuple, Set
+from typing import TextIO
+from collections.abc import Iterable
 
 from ..models import (
     Sequence, Position, RefSeqPair, PositionFlag, Message, MessageLevel
@@ -12,10 +13,10 @@ from . import fasta
 
 
 def insert_unaligned_region(
-    reftext: List[Position],
-    seqtext: List[Position],
-    orig_seqtext: List[Position],
-    seqtype: Type[Position],
+    reftext: list[Position],
+    seqtext: list[Position],
+    orig_seqtext: list[Position],
+    seqtype: type[Position],
     align1_ref_end: int,
     align1_seq_end: int,
     align2_ref_start: int,
@@ -53,7 +54,7 @@ def insert_unaligned_region(
         align1_ref_end + offset
     ] = seqtype.init_gaps(unaligned_seq_size)
 
-    unaligneds: List[Position] = deepcopy(orig_seqtext[
+    unaligneds: list[Position] = deepcopy(orig_seqtext[
         align1_seq_end:
         align1_seq_end + unaligned_seq_size
     ])
@@ -69,8 +70,8 @@ def load(
     paffp: TextIO,
     seqs_prior_alignment: TextIO,
     reference: TextIO,
-    seqtype: Type[Position],
-    messages: List[Message]
+    seqtype: type[Position],
+    messages: list[Message]
 ) -> Iterable[RefSeqPair]:
     seq: Sequence
     ref_start: int
@@ -88,9 +89,9 @@ def load(
         for pafstr in pafstr_iter
         if pafstr
     )
-    paf_lookup: Dict[
+    paf_lookup: dict[
         str,
-        Set[Tuple[int, int, int, int, str]]
+        set[tuple[int, int, int, int, str]]
     ] = defaultdict(set)
     for pafrec in pafrec_iter:
         if pafrec.strand == Strand.Reverse:
@@ -105,8 +106,8 @@ def load(
 
     for seq in seqs:
         try:
-            pafs: Set[
-                Tuple[int, int, int, int, str]
+            pafs: set[
+                tuple[int, int, int, int, str]
             ] = paf_lookup[str(seq.seqid)]
         except KeyError:
             # alignment for sequence is not found
@@ -138,14 +139,14 @@ def load(
                 )
             )
             continue
-        final_reftext: List[Position] = refseq.seqtext[:]
-        final_seqtext: List[Position] = seqtype.init_gaps(len(final_reftext))
+        final_reftext: list[Position] = refseq.seqtext[:]
+        final_seqtext: list[Position] = seqtype.init_gaps(len(final_reftext))
         prev_ref_start: int = len(refseq)
         prev_seq_start: int = len(seq)
-        ref_paf_params: List[str] = []
-        seq_paf_params: List[str] = []
-        scanned_ref_range: Set[int] = set()
-        scanned_seq_range: Set[int] = set()
+        ref_paf_params: list[str] = []
+        seq_paf_params: list[str] = []
+        scanned_ref_range: set[int] = set()
+        scanned_seq_range: set[int] = set()
         for ref_start, ref_end, seq_start, seq_end, cigar_text in \
                 sorted(pafs, key=lambda x: (x[1], x[0]), reverse=True):
             # scan PAF from end to begining
@@ -201,8 +202,8 @@ def load(
             scanned_ref_range |= ref_range
             scanned_seq_range |= seq_range
 
-            reftext: List[Position] = refseq.seqtext
-            seqtext: List[Position] = seq.seqtext
+            reftext: list[Position] = refseq.seqtext
+            seqtext: list[Position] = seq.seqtext
 
             reftext, seqtext = cigar_obj.get_alignment(
                 reftext, seqtext, seqtype)
@@ -211,9 +212,9 @@ def load(
                 seq_end = seq_start + seqtype.count_nongaps(seqtext)
 
             ref_paf_params.append(
-                '{},{},{}'.format(ref_start, ref_end, cigar_text))
+                f'{ref_start},{ref_end},{cigar_text}')
             seq_paf_params.append(
-                '{},{},{}'.format(seq_start, seq_end, cigar_text))
+                f'{seq_start},{seq_end},{cigar_text}')
 
             insert_unaligned_region(
                 final_reftext,
@@ -244,7 +245,7 @@ def load(
             2
         )
 
-        aligned_positions: Set[int] = set()
+        aligned_positions: set[int] = set()
         for pos in final_seqtext:
             if not (pos.flag & PositionFlag.UNALIGNED) and pos.pos > -1:
                 aligned_positions.add(pos.pos)

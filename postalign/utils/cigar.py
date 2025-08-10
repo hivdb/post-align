@@ -1,6 +1,5 @@
 import re
 import cython  # type: ignore
-from typing import List, Tuple, Type
 
 from ..models import Position
 
@@ -11,14 +10,14 @@ CIGAR_PATTERN = re.compile(r'(\d+)([MNDI])')
 @cython.returns(tuple)
 def _get_alignment(
     cigar: 'CIGAR',
-    refseq: List[Position],
-    seq: List[Position],
-    seqtype: Type[Position]
-) -> Tuple[List[Position], List[Position]]:
+    refseq: list[Position],
+    seq: list[Position],
+    seqtype: type[Position]
+) -> tuple[list[Position], list[Position]]:
     num: int
     op: str
-    aligned_refseq: List[Position] = refseq[cigar.ref_start:]
-    aligned_seq: List[Position] = seq[cigar.seq_start:]
+    aligned_refseq: list[Position] = refseq[cigar.ref_start:]
+    aligned_seq: list[Position] = seq[cigar.seq_start:]
     offset: int = 0
     for num, op in cigar.cigar_tuple:
         if op == 'M':
@@ -49,7 +48,7 @@ class CIGAR:
     ref_start: int
     seq_start: int
     cigar_string: str
-    cigar_tuple: List[Tuple[int, str]]
+    cigar_tuple: list[tuple[int, str]]
 
     def __init__(
         self: "CIGAR",
@@ -70,7 +69,7 @@ class CIGAR:
 
     def shrink_by_ref(self: "CIGAR", keep_size: int) -> "CIGAR":
         new_string: str
-        new_tuple: List[Tuple[int, str]] = []
+        new_tuple: list[tuple[int, str]] = []
         remain_size: int = keep_size
         for num, op in self.cigar_tuple:
             if op == 'I':
@@ -81,7 +80,7 @@ class CIGAR:
             else:
                 new_tuple.append((remain_size, op))
                 break
-        new_string = ''.join(['{}{}'.format(num, op) for num, op in new_tuple])
+        new_string = ''.join([f'{num}{op}' for num, op in new_tuple])
         return CIGAR(
             self.ref_start,
             self.seq_start,
@@ -90,13 +89,13 @@ class CIGAR:
 
     def get_alignment(
         self: "CIGAR",
-        refseq: List[Position],
-        seq: List[Position],
-        seqtype: Type[Position]
-    ) -> Tuple[List[Position], List[Position]]:
-        alignment: Tuple[
-            List[Position],
-            List[Position]
+        refseq: list[Position],
+        seq: list[Position],
+        seqtype: type[Position]
+    ) -> tuple[list[Position], list[Position]]:
+        alignment: tuple[
+            list[Position],
+            list[Position]
         ] = _get_alignment(self, refseq, seq, seqtype)
         return alignment
 

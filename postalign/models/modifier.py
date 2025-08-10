@@ -1,8 +1,9 @@
 import weakref
 from operator import attrgetter
 from typing import (
-    Any, List, Set, Tuple, Iterable, Iterator, Optional, Callable
+    Any
 )
+from collections.abc import Iterable, Iterator, Callable
 from itertools import groupby
 from collections import Counter
 
@@ -10,17 +11,17 @@ from collections import Counter
 class Modifier:
 
     text: str
-    slicetuples: List[Tuple[int, int]]
+    slicetuples: list[tuple[int, int]]
     child_mods: Counter['Modifier']
-    parent_mods: List[weakref.ref['Modifier']]
-    step: Optional[int]
+    parent_mods: list[weakref.ref['Modifier']]
+    step: int | None
     root_modifier: 'Modifier'
 
     def __init__(
         self: 'Modifier',
         text: str,
         *,
-        slicetuples: Optional[List[Tuple[int, int]]] = None
+        slicetuples: list[tuple[int, int]] | None = None
     ) -> None:
         self.text = text
         self.slicetuples = slicetuples or []
@@ -39,13 +40,13 @@ class Modifier:
 
     def remove_child_mod(self: 'Modifier', mod: 'Modifier') -> None:
         if mod not in self.child_mods:
-            raise KeyError('Modifier {} not found'.format(mod))
+            raise KeyError(f'Modifier {mod} not found')
         self.child_mods[mod] -= 1
 
-    def get_all_offspring_mods(self: 'Modifier') -> Set['Modifier']:
+    def get_all_offspring_mods(self: 'Modifier') -> set['Modifier']:
         mod: Modifier
         count: int
-        offspring_mods: Set[Modifier] = set()
+        offspring_mods: set[Modifier] = set()
         for mod, count in self.child_mods.items():
             if count <= 0:
                 continue  # ignore removed child_mod
@@ -70,7 +71,7 @@ class Modifier:
                 ','.join('{}..{}'.format(*st) for st in slicetuples)
             )
             merged = Modifier(modtext, slicetuples=slicetuples)
-            parent: Optional[Modifier] = self.parent_mods[0]()
+            parent: Modifier | None = self.parent_mods[0]()
             if parent:
                 parent.remove_child_mod(self)
                 parent.remove_child_mod(other)
@@ -93,7 +94,7 @@ class ModifierLinkedList:
 
     def __init__(
         self: 'ModifierLinkedList',
-        last_modifier: Optional[Modifier] = None
+        last_modifier: Modifier | None = None
     ) -> None:
         if last_modifier is None:
             last_modifier = Modifier('root()')
@@ -117,7 +118,7 @@ class ModifierLinkedList:
         modifier: Modifier = Modifier(modtext, **kw)
         last_modifier: Modifier = self._last_modifier
         for parent_ref in last_modifier.parent_mods:
-            parent: Optional[Modifier] = parent_ref()
+            parent: Modifier | None = parent_ref()
             if parent:
                 parent.remove_child_mod(last_modifier)
                 parent.add_child_mod(modifier)
@@ -142,7 +143,7 @@ class ModifierLinkedList:
     def __str__(self: 'ModifierLinkedList') -> str:
         step: int
         group: Iterable[Modifier]
-        text_buffer: List[str] = []
+        text_buffer: list[str] = []
         for step, group in self:
             text_buffer.append('{}:{}'.format(
                 step, ','.join(str(m) for m in group)))
@@ -150,7 +151,7 @@ class ModifierLinkedList:
 
     def __iter__(
         self: 'ModifierLinkedList'
-    ) -> Iterator[Tuple[int, Iterable[Modifier]]]:
+    ) -> Iterator[tuple[int, Iterable[Modifier]]]:
         root = self.last_modifier.root_modifier
         all_mods = root.get_all_offspring_mods()
         get_step: Callable[[Modifier], int] = attrgetter('step')

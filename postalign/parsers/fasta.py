@@ -1,4 +1,5 @@
-from typing import Type, TextIO, Iterable, Generator
+from typing import TextIO
+from collections.abc import Iterable, Generator
 
 from ..models import Sequence, Position
 
@@ -7,7 +8,7 @@ GAP_CHARS = b'.-'
 
 def load(
     fp: TextIO,
-    seqtype: Type[Position],
+    seqtype: type[Position],
     *,
     remove_gaps: bool = False
 ) -> Generator[Sequence, None, None]:

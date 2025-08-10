@@ -1,5 +1,5 @@
 import cython  # type: ignore
-from typing import Union, List, Dict, Type, Set
+from typing import Union
 
 from .na_position import NAPosition
 from .aa_position import AAPosition
@@ -8,7 +8,7 @@ Position = Union[NAPosition, AAPosition]
 
 SKIP_VALIDATION = object()
 
-VALID_NOTATIONS: Dict[Type[Position], Set[int]] = {
+VALID_NOTATIONS: dict[type[Position], set[int]] = {
     NAPosition: set(b'ACGTUWSMKRYBDHVN.-')
 }
 
@@ -16,11 +16,11 @@ VALID_NOTATIONS: Dict[Type[Position], Set[int]] = {
 @cython.ccall
 @cython.returns(list)
 def sanitize_sequence(
-    seqtext: List[Position],
-    seqtype: Type[Position],
+    seqtext: list[Position],
+    seqtype: type[Position],
     header: str,
-    skip_invalid: Union[bool, object]
-) -> List[Position]:
+    skip_invalid: bool | object
+) -> list[Position]:
     if (
         seqtype == AAPosition or
         any([isinstance(one, AAPosition) for one in seqtext])
@@ -37,8 +37,8 @@ def sanitize_sequence(
         )
 
     valid_notations: set[int] = VALID_NOTATIONS[seqtype]
-    valids: List[Position] = []
-    invalids: Set[int] = set()
+    valids: list[Position] = []
+    invalids: set[int] = set()
     for one in seqtext:
         if one.notation in valid_notations:
             valids.append(one)

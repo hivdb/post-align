@@ -1,7 +1,8 @@
 """Processor to save sequences as FASTA."""
 
 import typer
-from typing import Annotated, Any, Iterable
+from typing import Annotated, Any
+from collections.abc import Iterable
 
 from ..cli import cli
 from ..models import RefSeqPair, Sequence
@@ -64,15 +65,15 @@ def save_fasta(
                 (preserve_order and refseq.seqid + 1 == seq.seqid)
             ):
                 if modifiers:
-                    yield '>{}\n'.format(refseq.header_with_modifiers)
+                    yield f'>{refseq.header_with_modifiers}\n'
                 else:
-                    yield '>{}\n'.format(refseq.header)
-                yield '{}\n'.format(refseq.seqtext_as_str)
+                    yield f'>{refseq.header}\n'
+                yield f'{refseq.seqtext_as_str}\n'
 
             if modifiers:
-                yield '>{}\n'.format(seq.header_with_modifiers)
+                yield f'>{seq.header_with_modifiers}\n'
             else:
-                yield '>{}\n'.format(seq.header)
-            yield '{}\n'.format(seq.seqtext_as_str)
+                yield f'>{seq.header}\n'
+            yield f'{seq.seqtext_as_str}\n'
 
     return processor

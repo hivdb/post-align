@@ -1,13 +1,12 @@
 import cython  # type: ignore
-from typing import Dict, List, Set, Tuple
 from itertools import product
 from more_itertools import chunked
 from ..models import NAPosition
 
 GAP_NA: int = ord(b'-')
-GAP_CODON: Tuple[int, int, int] = (GAP_NA,) * 3
+GAP_CODON: tuple[int, int, int] = (GAP_NA,) * 3
 
-CODON_TABLE: Dict[Tuple[int, ...], Tuple[int, ...]] = {
+CODON_TABLE: dict[tuple[int, ...], tuple[int, ...]] = {
     tuple(b'TTT'): tuple(b'F'),
     tuple(b'TTC'): tuple(b'F'),
     tuple(b'TTA'): tuple(b'L'),
@@ -90,12 +89,12 @@ CODON_TABLE: Dict[Tuple[int, ...], Tuple[int, ...]] = {
     tuple(b'TAG'): tuple(b'*'),
 }
 
-REVERSE_CODON_TABLE: Dict[int, List[bytes]] = {}
+REVERSE_CODON_TABLE: dict[int, list[bytes]] = {}
 for codon, aa in CODON_TABLE.items():
     REVERSE_CODON_TABLE.setdefault(aa[0], []).append(bytes(codon))
 
 
-AMBIGUOUS_NAS: Dict[int, Tuple[int, ...]] = {
+AMBIGUOUS_NAS: dict[int, tuple[int, ...]] = {
     ord(b'W'): tuple(b'AT'),
     ord(b'S'): tuple(b'CG'),
     ord(b'M'): tuple(b'AC'),
@@ -114,10 +113,10 @@ AMBIGUOUS_NAS: Dict[int, Tuple[int, ...]] = {
 @cython.inline
 @cython.returns(tuple)
 def _translate_codon(
-    nas: Tuple[int, ...],
-    fs_as: Tuple[int],
-    del_as: Tuple[int],
-) -> Tuple[int, ...]:
+    nas: tuple[int, ...],
+    fs_as: tuple[int],
+    del_as: tuple[int],
+) -> tuple[int, ...]:
     if nas in CODON_TABLE:
         return CODON_TABLE[nas]
     len_nas = len(nas)
@@ -130,9 +129,9 @@ def _translate_codon(
         return fs_as
 
     na: int
-    cand_nas: Tuple[int, ...]
-    aas: Set[int] = set()
-    unambi_nas: List[Tuple[int, ...]] = []
+    cand_nas: tuple[int, ...]
+    aas: set[int] = set()
+    unambi_nas: list[tuple[int, ...]] = []
     for na in nas:
         if na in AMBIGUOUS_NAS:
             unambi_nas.append(AMBIGUOUS_NAS[na])
@@ -140,7 +139,7 @@ def _translate_codon(
             unambi_nas.append((na, ))
     for cand_nas in product(*unambi_nas):
         aas.add(CODON_TABLE[cand_nas][0])
-    aas_tuple: Tuple[int, ...] = tuple(sorted(aas))
+    aas_tuple: tuple[int, ...] = tuple(sorted(aas))
     CODON_TABLE[nas] = aas_tuple
     return aas_tuple
 
@@ -148,13 +147,13 @@ def _translate_codon(
 @cython.ccall
 @cython.returns(bytes)
 def translate_codon(
-    nas: List[NAPosition],
+    nas: list[NAPosition],
     fs_as: bytes = b'X',
     del_as: bytes = b'-'
 ) -> bytes:
     nas = nas[:3]
     nas_bytes: bytes = NAPosition.as_bytes(nas)
-    aas: Tuple[int, ...] = _translate_codon(
+    aas: tuple[int, ...] = _translate_codon(
         tuple(nas_bytes),
         tuple(fs_as),
         tuple(del_as))
@@ -164,17 +163,17 @@ def translate_codon(
 @cython.ccall
 @cython.returns(list)
 def translate_codons(
-    nas: List[NAPosition],
+    nas: list[NAPosition],
     fs_as: bytes = b'X',
     del_as: bytes = b'-'
-) -> List[bytes]:
+) -> list[bytes]:
     nas_bytes: bytes = NAPosition.as_bytes(nas)
-    codon: List[int]
-    fs_as_tuple: Tuple[int, ...] = tuple(fs_as)
-    del_as_tuple: Tuple[int, ...] = tuple(del_as)
-    all_aas: List[bytes] = []
+    codon: list[int]
+    fs_as_tuple: tuple[int, ...] = tuple(fs_as)
+    del_as_tuple: tuple[int, ...] = tuple(del_as)
+    all_aas: list[bytes] = []
     for codon in chunked(nas_bytes, 3):
-        aas: Tuple[int, ...] = _translate_codon(
+        aas: tuple[int, ...] = _translate_codon(
             tuple(codon),
             fs_as_tuple,
             del_as_tuple)
@@ -184,7 +183,7 @@ def translate_codons(
 
 @cython.ccall
 @cython.returns(list)
-def get_codons(aa: int) -> List[bytes]:
+def get_codons(aa: int) -> list[bytes]:
     return REVERSE_CODON_TABLE[aa]
 
 

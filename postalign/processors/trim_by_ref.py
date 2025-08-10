@@ -1,5 +1,6 @@
 import re
-from typing import Iterable, Optional, Any
+from typing import Any
+from collections.abc import Iterable
 
 from ..cli import cli
 from ..models import Sequence, RefSeqPair
@@ -11,12 +12,12 @@ RIGHT_TRIM_PATTERN: re.Pattern = re.compile(r'[.-]+$')
 
 
 def find_trim_slice(seq: Sequence) -> slice:
-    left_trim: Optional[int] = None
+    left_trim: int | None = None
     seqtext_str: str = seq.seqtext_as_str
-    match: Optional[re.Match] = LEFT_TRIM_PATTERN.search(seqtext_str)
+    match: re.Match | None = LEFT_TRIM_PATTERN.search(seqtext_str)
     if match:
         left_trim = match.span()[1]
-    right_trim: Optional[int] = None
+    right_trim: int | None = None
     match = RIGHT_TRIM_PATTERN.search(seqtext_str)
     if match:
         right_trim = match.span()[0]
