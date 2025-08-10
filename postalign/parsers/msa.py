@@ -1,4 +1,6 @@
-import click
+"""MSA parser utilities."""
+
+import typer
 from typing import Type, TextIO, Generator, Iterable
 from itertools import tee
 
@@ -24,9 +26,10 @@ def load(
                 if ref.header == reference
             )
         except StopIteration:
-            raise click.ClickException(
-                'Unable to locate reference {!r} (--reference)'
-                .format(reference)
+            raise typer.BadParameter(
+                'Unable to locate reference {!r} (--reference)'.format(
+                    reference
+                )
             )
     else:
         refseq = next(ref_finder)

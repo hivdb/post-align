@@ -1,4 +1,6 @@
-import click
+"""Processor to save sequences as FASTA."""
+
+import typer
 from typing import Iterable, Any
 
 from ..cli import cli
@@ -8,28 +10,27 @@ from ..processor import output_processor, Processor
 
 
 @cli.command('save-fasta')
-@click.option(
-    '--preserve-order',
-    is_flag=True,
-    help=(
-        'Preserve original sequence input order / '
-        'place ref sequence at first'))
-@click.option(
-    '--modifiers/--no-modifiers',
-    default=True,
-    help=(
-        'Include/exclude modification steps (modifiers) '
-        'in sequence headers'))
-@click.option(
-    '--pairwise/--msa',
-    default=False,
-    help='Save alignments in pairwise or MSA form')
 def save_fasta(
-    preserve_order: bool,
-    modifiers: bool,
-    pairwise: bool
+    preserve_order: bool = typer.Option(
+        False, '--preserve-order',
+        help=(
+            'Preserve original sequence input order / '
+            'place ref sequence at first'
+        ),
+    ),
+    modifiers: bool = typer.Option(
+        True, '--modifiers/--no-modifiers',
+        help=(
+            'Include/exclude modification steps (modifiers) in '
+            'sequence headers'
+        ),
+    ),
+    pairwise: bool = typer.Option(
+        False, '--pairwise/--msa',
+        help='Save alignments in pairwise or MSA form',
+    ),
 ) -> Processor[Iterable[str]]:
-    """Save prior post-alignment results as a FASTA file"""
+    """Save prior post-alignment results as a FASTA file."""
 
     @output_processor('save-fasta')
     def processor(

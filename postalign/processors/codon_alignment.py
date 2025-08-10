@@ -1,5 +1,7 @@
+"""Processor performing codon alignment."""
+
 import re
-import click
+import typer
 import cython  # type: ignore
 from typing import Iterable, Tuple, List, Set, Optional, Dict, Any
 from itertools import chain, groupby
@@ -583,10 +585,6 @@ def codon_align(
 def parse_gap_placement_score(value: str) -> Dict[
     int, Dict[Tuple[int, int], int]
 ]:
-    pos: str
-    pos_size: str
-    gap_type: str
-    gap_score: str
     score_str: str
     scores: Dict[int, Dict[Tuple[int, int], int]] = {
         REFGAP: {},
@@ -613,15 +611,21 @@ def parse_gap_placement_score(value: str) -> Dict[
 @cython.ccall
 @cython.returns(dict)
 def gap_placement_score_callback(
-    ctx: click.Context,
-    param: click.Option,
-    value: Tuple[str]
+    ctx: typer.Context,
+    param: typer.CallbackParam,
+    value: Tuple[str, ...],
 ) -> Dict[int, Dict[Tuple[int, int], int]]:
+    """Parse ``--gap-placement-score`` arguments.
+
+    :param ctx: Typer context.
+    :param param: Callback parameter definition.
+    :param value: Tuple of score specifications.
+    :returns: Nested mapping of gap placement scores.
+    :raises typer.BadParameter: On invalid input value.
+    """
     if not param.name:
-        raise click.BadParameter(
-            'Internal error (gap_placement_score_callback:1)',
-            ctx,
-            param
+        raise typer.BadParameter(
+            'Internal error (gap_placement_score_callback:1)'
         )
     try:
         result: Dict[
@@ -629,84 +633,63 @@ def gap_placement_score_callback(
         ] = parse_gap_placement_score(','.join(value))
         return result
     except ValueError as exp:
-        raise click.BadOptionUsage(
-            param.name,
-            str(exp),
-            ctx
-        )
+        raise typer.BadParameter(str(exp))
 
 
 @cli.command('codon-alignment')
-@click.option(
-    '--min-gap-distance',
-    type=int,
-    default=30,
-    help=(
-        'Minimal NA gap distance of the output, gaps within the'
-        'minnimal distance will be gathered into a single gap'
-    ))
-@click.option(
-    '--window-size',
-    type=int,
-    default=10,
-    help=(
-        'AA local window size for finding the local optimal '
-        'placement (BLOSUM62) for an insertion or deletion gap: '
-        'the larger the window the better the result and the slower '
-        'the process'
-    ))
-@click.option(
-    '--gap-placement-score',
-    type=str,
-    multiple=True,
-    default=[],
-    callback=gap_placement_score_callback,
-    help=(
-        'Bonus (positive number) or penalty (negative number) for gaps '
-        'appear at certain NA position (relative to the WHOLE ref seq) in the '
-        'ref seq (ins) or target seq (del). For example, 204ins:-5 is a -5 '
-        'penalty designate to a gap with any size gap in ref seq after NA '
-        'position 204 (AA position 68). 2041/12del:10 is a +10 score for a '
-        '12 NAs size (4 codons) gap in target seq at NA position 2041, '
-        'equivalent to deletion at 681, 682, 683 and 684 AA position. '
-        'Multiple scores can be delimited by commas, such as '
-        '204ins:-5,2041/12del:10.'
-    ))
-@click.argument(
-    'ref_start', type=int, default=1
-)
-@click.argument(
-    'ref_end', type=int, default=-1
-)
 def codon_alignment(
-    min_gap_distance: int,
-    window_size: int,
-    # For NASize, 0 means any size
-    #                        Indel         NAPos NASize Score
-    #                          v              v     v     v
-    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
-    ref_start: int,
-    ref_end: int
-    # XXX: see https://github.com/cython/cython/issues/2753
-    # this has been fixed by cython 3.0
-    # ) -> Processor[Iterable[RefSeqPair]]:
+    min_gap_distance: int = typer.Option(
+        30,
+        '--min-gap-distance',
+        help=(
+            'Minimal NA gap distance of the output; gaps within the '
+            'minimal distance will be gathered into a single gap'
+        ),
+    ),
+    window_size: int = typer.Option(
+        10, '--window-size',
+        help=(
+            'AA local window size for finding the local optimal placement '
+            '(BLOSUM62) for an insertion or deletion gap: the larger '
+            'the window the better the result and the slower the process'
+        ),
+    ),
+    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]] = typer.Option(
+        (), '--gap-placement-score',
+        callback=gap_placement_score_callback,
+        multiple=True,
+        help=(
+            'Bonus (positive number) or penalty (negative number) for gaps '
+            'appear at certain NA position (relative to the WHOLE ref seq) '
+            'in the ref seq (ins) or target seq (del). For example, '
+            '204ins:-5 is a -5 penalty designate to a gap with any size '
+            'gap in ref seq after NA position 204 (AA position 68). '
+            '2041/12del:10 is a +10 score for a 12 NAs size (4 codons) '
+            'gap in target seq at NA position 2041, equivalent to deletion '
+            'at 681, 682, 683 and 684 AA position. Multiple scores can be '
+            'delimited by commas, such as 204ins:-5,2041/12del:10.'
+        ),
+    ),  # type: ignore[call-overload]
+    ref_start: int = typer.Argument(1),
+    ref_end: int = typer.Argument(-1),
 ) -> Processor:
-    """Codon alignment
+    """Codon alignment.
 
-    A blackbox re-implementation of the "codon-align" tool
-    created by LANL HIV Sequence Database.
+    A blackbox re-implementation of the "codon-align" tool created by
+    LANL HIV Sequence Database.
 
-    The arguments <REF_START> and <REF_END> provide the position range
-    (relative to ref. sequence) where the codon alignment should be applied.
+    :param ref_start: Start position relative to reference sequence.
+    :param ref_end: End position relative to reference sequence.
+    :raises typer.BadParameter: If provided positions are invalid.
     """
     if ref_start < 1:
-        raise click.ClickException(
-            'argument <REF_START>:{} must be not less than 1'.format(ref_start)
+        raise typer.BadParameter(
+            f'argument <REF_START>:{ref_start} must be not less than 1'
         )
     if ref_end > 0 and ref_end - 2 < ref_start:
-        raise click.ClickException(
-            'no enough codon between arguments <REF_START>:{} and <REF_END>:{}'
-            .format(ref_start, ref_end)
+        raise typer.BadParameter(
+            'no enough codon between arguments <REF_START>:{0} and '
+            '<REF_END>:{1}'.format(ref_start, ref_end)
         )
 
     @intermediate_processor('codon-alignment')
@@ -717,7 +700,7 @@ def codon_alignment(
         seq: Sequence
         for refseq, seq in iterator:
             if refseq.seqtype != NAPosition:
-                raise click.ClickException(
+                raise typer.BadParameter(
                     'Codon alignment only applies to nucleotide '
                     'sequences.')
 
