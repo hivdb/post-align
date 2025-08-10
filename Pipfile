@@ -7,6 +7,9 @@ verify_ssl = true
 ipython = "*"
 pyinstaller = ">=4.2"
 mypy = "*"
+flake8 = "*"
+pytest = "*"
+pytest-cov = "*"
 
 [packages]
 click = ">=8.1.1"
