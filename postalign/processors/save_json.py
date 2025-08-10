@@ -4,7 +4,7 @@ import orjson
 # import math
 import typer
 from textwrap import indent
-from typing import Tuple, List, Iterable, TypedDict, Optional, Dict
+from typing import Annotated, Dict, Iterable, List, Optional, Tuple, TypedDict
 from more_itertools import chunked
 
 from ..cli import cli
@@ -106,16 +106,17 @@ class Payload(TypedDict):
 
 @cli.command('save-json')
 def save_json(
-    gene_range_tuples: GeneRanges = typer.Argument(
-        ..., callback=gene_range_tuples_callback,
-    )
+    gene_range_tuples: Annotated[
+        GeneRanges,
+        typer.Argument(..., callback=gene_range_tuples_callback),
+    ],
 ) -> Processor[Iterable[str]]:
-    """Save as NucAmino style JSON reports
+    """Save as NucAmino style JSON reports.
 
-    <GENE_RANGE_TUPLES>:
-        2n+1-tuples of
-        <GENE> <REF_START1> <REF_END1> <REF_START2> <REF_END2> ...
-        Use to calculate codon position within the protein/gene.
+    :param gene_range_tuples: 2n+1 tuples of
+        ``<GENE> <REF_START1> <REF_END1> <REF_START2> <REF_END2> ...`` used
+        to calculate codon positions within the protein or gene.
+    :returns: Processor yielding JSON report fragments.
     """
     num_indent: int = 2
 

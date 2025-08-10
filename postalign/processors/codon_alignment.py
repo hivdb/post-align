@@ -3,7 +3,7 @@
 import re
 import typer
 import cython  # type: ignore
-from typing import Iterable, Tuple, List, Set, Optional, Dict, Any
+from typing import Annotated, Any, Dict, Iterable, List, Optional, Set, Tuple
 from itertools import chain, groupby
 
 from ..cli import cli
@@ -638,46 +638,61 @@ def gap_placement_score_callback(
 
 @cli.command('codon-alignment')
 def codon_alignment(
-    min_gap_distance: int = typer.Option(
-        30,
-        '--min-gap-distance',
-        help=(
-            'Minimal NA gap distance of the output; gaps within the '
-            'minimal distance will be gathered into a single gap'
+    min_gap_distance: Annotated[
+        int,
+        typer.Option(
+            30,
+            '--min-gap-distance',
+            help=(
+                'Minimal NA gap distance of the output; gaps within the '
+                'minimal distance will be gathered into a single gap'
+            ),
         ),
-    ),
-    window_size: int = typer.Option(
-        10, '--window-size',
-        help=(
-            'AA local window size for finding the local optimal placement '
-            '(BLOSUM62) for an insertion or deletion gap: the larger '
-            'the window the better the result and the slower the process'
+    ] = 30,
+    window_size: Annotated[
+        int,
+        typer.Option(
+            10, '--window-size',
+            help=(
+                'AA local window size for finding the local optimal placement '
+                '(BLOSUM62) for an insertion or deletion gap: the larger '
+                'the window the better the result and the slower the process'
+            ),
         ),
-    ),
-    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]] = typer.Option(
-        (), '--gap-placement-score',
-        callback=gap_placement_score_callback,
-        multiple=True,
-        help=(
-            'Bonus (positive number) or penalty (negative number) for gaps '
-            'appear at certain NA position (relative to the WHOLE ref seq) '
-            'in the ref seq (ins) or target seq (del). For example, '
-            '204ins:-5 is a -5 penalty designate to a gap with any size '
-            'gap in ref seq after NA position 204 (AA position 68). '
-            '2041/12del:10 is a +10 score for a 12 NAs size (4 codons) '
-            'gap in target seq at NA position 2041, equivalent to deletion '
-            'at 681, 682, 683 and 684 AA position. Multiple scores can be '
-            'delimited by commas, such as 204ins:-5,2041/12del:10.'
-        ),
-    ),  # type: ignore[call-overload]
-    ref_start: int = typer.Argument(1),
-    ref_end: int = typer.Argument(-1),
+    ] = 10,
+    gap_placement_score: Annotated[
+        Dict[int, Dict[Tuple[int, int], int]],
+        typer.Option(
+            (), '--gap-placement-score',
+            callback=gap_placement_score_callback,
+            multiple=True,
+            help=(
+                'Bonus (positive number) or penalty (negative number) for gaps'
+                ' appear at certain NA position '
+                '(relative to the WHOLE ref seq) '
+                'in the ref seq (ins) or target seq (del). For example, '
+                '204ins:-5 is a -5 penalty designate to a gap with any size '
+                'gap in ref seq after NA position 204 (AA position 68). '
+                '2041/12del:10 is a +10 score for a 12 NAs size'
+                ' (4 codons) gap in target seq at NA position 2041,'
+                ' equivalent to deletion at 681, 682, 683 and 684 AA position.'
+                ' Multiple scores can be delimited by commas, such as '
+                '204ins:-5,2041/12del:10.'
+            ),
+        ),  # type: ignore[call-overload]
+    ] = {},
+    ref_start: Annotated[int, typer.Argument()] = 1,
+    ref_end: Annotated[int, typer.Argument()] = -1,
 ) -> Processor:
     """Codon alignment.
 
     A blackbox re-implementation of the "codon-align" tool created by
     LANL HIV Sequence Database.
 
+    :param min_gap_distance: Minimal nucleotide gap distance of the output.
+    :param window_size: Amino acid window size for finding optimal placement.
+    :param gap_placement_score: Bonus or penalty scores for gaps at specific
+        positions.
     :param ref_start: Start position relative to reference sequence.
     :param ref_end: End position relative to reference sequence.
     :raises typer.BadParameter: If provided positions are invalid.

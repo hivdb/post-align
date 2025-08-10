@@ -1,25 +1,34 @@
 """Command-line interface for post-align."""
 
 import sys
+from enum import Enum
 from typing import (
-    Union,
-    TextIO,
-    Optional,
+    Annotated,
     Iterable,
     List,
+    Optional,
+    TextIO,
     Type,
+    Union,
 )
 
 import typer
+from typer import FileText, FileTextWrite
 from rich import print
 
 from .processor import Processor
-from .parsers import msa, paf, fasta, minimap2
+from .parsers import fasta, minimap2, msa, paf
 from .models import Message
-from .models.sequence import RefSeqPair, Sequence, NAPosition
+from .models.sequence import NAPosition, RefSeqPair, Sequence
 
 
-INPUT_FORMAT = ['MSA', 'PAF', 'MINIMAP2']
+class AlignmentFormat(str, Enum):
+    """Supported alignment file formats."""
+
+    MSA = "MSA"
+    PAF = "PAF"
+    MINIMAP2 = "MINIMAP2"
+
 
 cli = typer.Typer(chain=True, pretty_exceptions_enable=False)
 
@@ -41,19 +50,19 @@ def reference_callback(
     if not param.name:
         raise typer.BadParameter('Internal error (reference_callback:1)')
     retvalue: Union[TextIO, str]
-    alignment_format: str = ctx.params['alignment_format']
+    alignment_format: AlignmentFormat = ctx.params['alignment_format']
     try:
         retvalue = open(value)
-        if alignment_format == 'MSA':
+        if alignment_format is AlignmentFormat.MSA:
             ref: Sequence = next(fasta.load(retvalue, seqtype=NAPosition))
             retvalue = ref.header
     except (KeyboardInterrupt, SystemExit):
         raise
     except Exception:
-        if alignment_format != 'MSA':
+        if alignment_format is not AlignmentFormat.MSA:
             raise typer.BadParameter(
                 '-r/--reference must provided as a file path if alignment is '
-                f"{alignment_format!r}"
+                f"{alignment_format.value!r}"
             )
     return retvalue
 
@@ -76,18 +85,18 @@ def seqs_prior_alignment_callback(
         raise typer.BadParameter(
             'Internal error (seqs_prior_alignment_callback:1)'
         )
-    alignment_format: str = ctx.params['alignment_format']
-    if alignment_format in ('PAF',):
+    alignment_format: AlignmentFormat = ctx.params['alignment_format']
+    if alignment_format in (AlignmentFormat.PAF,):
         if not value:
             raise typer.BadParameter(
                 '-p/--seqs-prior-alignment must provided for alignment format '
-                f"{alignment_format!r}"
+                f"{alignment_format.value!r}"
             )
         return value
     elif value:
         print(
             'Warning: ignore -p/--seqs-prior-alignment for alignment format '
-            f"{alignment_format!r}",
+            f"{alignment_format.value!r}",
             file=sys.stderr,
         )
     return None
@@ -95,62 +104,98 @@ def seqs_prior_alignment_callback(
 
 @cli.callback(invoke_without_command=True)
 def main(
-    input_alignment: typer.FileText = typer.Option(
-        ..., '-i', '--input-alignment',
-        help=(
-            'Input alignment file. Support formats: '
-            f"{', '.join(INPUT_FORMAT)}"
+    input_alignment: Annotated[
+        FileText,
+        typer.Option(
+            ..., '-i', '--input-alignment',
+            help=(
+                'Input alignment file. Support formats: '
+                f"{', '.join(fmt.value for fmt in AlignmentFormat)}"
+            ),
         ),
-    ),
-    seqs_prior_alignment: Optional[typer.FileText] = typer.Option(
-        None,
-        '-p', '--seqs-prior-alignment',
-        callback=seqs_prior_alignment_callback,
-        help=(
-            "FASTA sequence file prior alignment; required by 'PAF' "
-            'alignment format'
+    ],
+    output: Annotated[
+        FileTextWrite,
+        typer.Option(..., '-o', '--output', help='Output file'),
+    ],
+    alignment_format: Annotated[
+        AlignmentFormat,
+        typer.Option(
+            ..., '-f', '--alignment-format',
+            case_sensitive=False,
+            is_eager=True,
+            help='Input/output alignment file format',
         ),
-    ),
-    output: typer.FileTextWrite = typer.Option(
-        ..., '-o', '--output',
-        help='Output file',
-    ),
-    alignment_format: str = typer.Option(
-        ..., '-f', '--alignment-format',
-        case_sensitive=False,
-        is_eager=True,
-        help='Input/output alignment file format',
-    ),
-    reference: Union[TextIO, str] = typer.Option(
-        ..., '-r', '--reference',
-        callback=reference_callback,
-        help=(
-            'Header/FASTA file of the reference sequence. Will use the '
-            'first sequence as reference if not specified. A file must be '
-            "specified when -f/--alignment-format is not 'MSA'"
+    ],
+    reference: Annotated[
+        Union[TextIO, str],
+        typer.Option(
+            ..., '-r', '--reference',
+            callback=reference_callback,
+            help=(
+                'Header/FASTA file of the reference sequence. Will use the '
+                'first sequence as reference if not specified. A file must be '
+                "specified when -f/--alignment-format is not 'MSA'"
+            ),
         ),
-    ),
-    nucleotides: bool = typer.Option(
-        True, '-n/-a', '--nucleotides/--amino-acids',
-        help='The input sequences are nucleotides or amino acids',
-    ),
-    verbose: bool = typer.Option(
-        True, '-V/-q', '--verbose/--quiet',
-        help='Verbose/quiet output',
-    ),
-    enable_profile: bool = typer.Option(
-        False, '--enable-profile/--disable-profile',
-        help='Enable cProfile',
-    ),
-    minimap2_opts: Optional[str] = typer.Option(
-        None, '--minimap2-opts',
-        help=(
-            'Options to be passed to minimap2 command '
-            '(when -f is MINIMAP2)'
+    ],
+    seqs_prior_alignment: Annotated[
+        Optional[FileText],
+        typer.Option(
+            None,
+            '-p', '--seqs-prior-alignment',
+            callback=seqs_prior_alignment_callback,
+            help=(
+                "FASTA sequence file prior alignment; required by 'PAF' "
+                'alignment format'
+            ),
         ),
-    ),
+    ] = None,
+    nucleotides: Annotated[
+        bool,
+        typer.Option(
+            True, '-n/-a', '--nucleotides/--amino-acids',
+            help='The input sequences are nucleotides or amino acids',
+        ),
+    ] = True,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            True, '-V/-q', '--verbose/--quiet',
+            help='Verbose/quiet output',
+        ),
+    ] = True,
+    enable_profile: Annotated[
+        bool,
+        typer.Option(
+            False, '--enable-profile/--disable-profile',
+            help='Enable cProfile',
+        ),
+    ] = False,
+    minimap2_opts: Annotated[
+        Optional[str],
+        typer.Option(
+            None, '--minimap2-opts',
+            help=(
+                'Options to be passed to minimap2 command '
+                '(when -f is MINIMAP2)'
+            ),
+        ),
+    ] = None,
 ) -> None:
-    """Store common CLI options in the context."""
+    """Store common CLI options in the Typer context.
+
+    :param input_alignment: Input alignment file.
+    :param output: Output file handle.
+    :param alignment_format: Alignment format identifier.
+    :param reference: Header or FASTA file of the reference sequence.
+    :param seqs_prior_alignment: FASTA sequence file prior to alignment;
+        required by 'PAF' alignment format.
+    :param nucleotides: ``True`` if sequences are nucleotides.
+    :param verbose: Verbose or quiet output.
+    :param enable_profile: Enable cProfile.
+    :param minimap2_opts: Options passed to the minimap2 command.
+    """
     pass
 
 
@@ -205,7 +250,7 @@ def process_pipeline(
     input_alignment: TextIO,
     seqs_prior_alignment: Optional[TextIO],
     output: TextIO,
-    alignment_format: str,
+    alignment_format: AlignmentFormat,
     reference: Union[TextIO, str],
     nucleotides: bool,
     verbose: bool,
@@ -237,12 +282,12 @@ def process_pipeline(
         )
 
     if isinstance(reference, str):
-        if alignment_format == 'MSA':
+        if alignment_format is AlignmentFormat.MSA:
             iterator = msa.load(input_alignment, reference, seqtype)
-    elif alignment_format == 'PAF' and seqs_prior_alignment:
+    elif alignment_format is AlignmentFormat.PAF and seqs_prior_alignment:
         iterator = paf.load(input_alignment, seqs_prior_alignment,
                             reference, seqtype, messages)
-    elif alignment_format == 'MINIMAP2':
+    elif alignment_format is AlignmentFormat.MINIMAP2:
         minimap2_execute = ['minimap2']
         if minimap2_opts:
             minimap2_execute.extend(minimap2_opts.split())
@@ -255,7 +300,7 @@ def process_pipeline(
         )
     else:
         raise typer.BadParameter(
-            f'Unsupport alignment format: {alignment_format}'
+            f'Unsupport alignment format: {alignment_format.value}'
         )
 
     if enable_profile:
