@@ -177,6 +177,22 @@ def test_paf_load_inserts_unaligned_region() -> None:
     )
 
 
+def test_paf_load_missing_alignment_yields_empty_sequences() -> None:
+    """Sequences without PAF records should yield empty texts."""
+    from io import StringIO
+
+    from postalign.models import NAPosition, Message
+    from postalign.parsers import paf
+
+    paf_text = "1\t4\t0\t4\t+\tref\t4\t0\t4\t4\t4\t60\tcg:Z:4M\n"
+    seqs = StringIO(">1\nAAAA\n>2\nTTTT\n")
+    ref = StringIO(">ref\nAAAA\n")
+    messages: list[Message] = []
+    pairs = list(paf.load(StringIO(paf_text), seqs, ref, NAPosition, messages))
+    assert pairs[1][0].seqtext_as_str == ""
+    assert pairs[1][1].seqtext_as_str == ""
+
+
 def test_paf_load_skips_reverse_strand() -> None:
     """Reverse-strand alignments should be ignored during loading."""
     from io import StringIO

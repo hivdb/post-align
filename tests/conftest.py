@@ -77,100 +77,140 @@ fake_typer.Argument = _option  # type: ignore[attr-defined]
 sys.modules.setdefault("typer", fake_typer)
 
 
+fake_cython = types.ModuleType("cython")
+fake_cython.int = int  # type: ignore[attr-defined]
+fake_cython.ccall = lambda func: func  # type: ignore[attr-defined]
+fake_cython.cfunc = lambda func: func  # type: ignore[attr-defined]
+fake_cython.inline = lambda func: func  # type: ignore[attr-defined]
+fake_cython.cclass = lambda cls: cls  # type: ignore[attr-defined]
+fake_cython.bint = bool  # type: ignore[attr-defined]
+
+
+def _declare(type_: object, value: object | None = None, **_: object) -> object:
+    """Mimic :func:`cython.declare` for test shimming."""
+    if value is not None:
+        return value
+    if type_ is int:
+        return 0
+    if type_ is bool:
+        return False
+    return None
+
+
+fake_cython.declare = _declare  # type: ignore[attr-defined]
+
+
+def _returns(_: object) -> Callable[[Any], Any]:  # type: ignore[misc]
+    return lambda func: func
+
+
+fake_cython.returns = _returns  # type: ignore[attr-defined]
+sys.modules.setdefault("cython", fake_cython)
+
+
 @pytest.fixture(autouse=True)
 def cython_shim() -> Generator[None, None, None]:
-    """Provide a dummy `cython` module for tests.
-
-    Some utilities import :mod:`cython` for type hints. The actual Cython
-    package is not required for these tests, so a lightweight shim is
-    injected into :data:`sys.modules` to satisfy the import.
-    """
-    fake_cython = types.ModuleType("cython")
-    fake_cython.int = int  # type: ignore[attr-defined]
-    fake_cython.ccall = lambda func: func  # type: ignore[attr-defined]
-    fake_cython.cfunc = lambda func: func  # type: ignore[attr-defined]
-    fake_cython.inline = lambda func: func  # type: ignore[attr-defined]
-    fake_cython.cclass = lambda cls: cls  # type: ignore[attr-defined]
-    fake_cython.bint = bool  # type: ignore[attr-defined]
-
-    def declare(
-        type_: object,
-        value: object | None = None,
-        **_: object,
-    ) -> object:
-        if value is not None:
-            return value
-        if type_ is int:
-            return 0
-        if type_ is bool:
-            return False
-        return None
-
-    fake_cython.declare = declare  # type: ignore[attr-defined]
-
-    def _returns(_: object) -> Callable[[Any], Any]:  # type: ignore[misc]
-        return lambda func: func
-
-    fake_cython.returns = _returns  # type: ignore[attr-defined]
-
+    """Ensure the project root is importable during tests."""
     project_root = str(Path(__file__).resolve().parents[1])
     new_path = [project_root] + sys.path
-    with patch.dict(sys.modules, {"cython": fake_cython}), patch.object(
-        sys, "path", new_path
-    ):
+    with patch.object(sys, "path", new_path):
         yield
+
+
+fake_pafpy = types.ModuleType("pafpy")
+
+
+class _PafRecord(types.SimpleNamespace):
+    """Minimal stand-in for :class:`pafpy.PafRecord`."""
+
+    @classmethod
+    def from_str(cls, line: str) -> "_PafRecord":
+        fields = line.rstrip().split("\t")
+        tags = {
+            tag.split(":", 2)[0]: types.SimpleNamespace(value=tag.split(":", 2)[2])
+            for tag in fields[12:]
+        }
+        return cls(
+            qname=fields[0],
+            qlen=int(fields[1]),
+            qstart=int(fields[2]),
+            qend=int(fields[3]),
+            strand=fields[4],
+            tname=fields[5],
+            tlen=int(fields[6]),
+            tstart=int(fields[7]),
+            tend=int(fields[8]),
+            mlen=int(fields[9]),
+            blen=int(fields[10]),
+            mapq=int(fields[11]),
+            tags=tags,
+        )
+
+
+fake_pafpy.PafRecord = _PafRecord  # type: ignore[attr-defined]
+fake_pafpy.Strand = types.SimpleNamespace(Reverse="-")  # type: ignore[attr-defined]
+sys.modules.setdefault("pafpy", fake_pafpy)
 
 
 @pytest.fixture(autouse=True)
 def pafpy_shim() -> Generator[None, None, None]:
-    """Provide a minimal :mod:`pafpy` shim for parser imports."""
-    fake_pafpy = types.ModuleType("pafpy")
-    fake_pafpy.PafRecord = object  # type: ignore[attr-defined]
-    fake_pafpy.Strand = object  # type: ignore[attr-defined]
-    with patch.dict(sys.modules, {"pafpy": fake_pafpy}):
-        yield
+    """No-op fixture retaining the :mod:`pafpy` shim."""
+    yield
+
+
+fake_rich = types.ModuleType("rich")
+fake_rich.print = MagicMock(side_effect=print)  # type: ignore[attr-defined]
+sys.modules.setdefault("rich", fake_rich)
 
 
 @pytest.fixture(autouse=True)
 def rich_shim() -> Generator[None, None, None]:
-    """Mock :mod:`rich`'s ``print`` while keeping the real package."""
-    import rich
+    """Retain the :mod:`rich` shim for tests."""
+    yield
 
-    with patch.object(rich, "print", MagicMock(side_effect=print)):
-        yield
+
+import itertools
+
+
+def _chunked(iterable: Iterable[Any], n: int) -> Iterator[tuple[Any, ...]]:
+    """Simplified replacement for :func:`more_itertools.chunked`."""
+    iterator = iter(iterable)
+    while True:
+        chunk = tuple(itertools.islice(iterator, n))
+        if not chunk:
+            break
+        yield chunk
+
+
+fake_more = types.ModuleType("more_itertools")
+fake_more.chunked = _chunked  # type: ignore[attr-defined]
+sys.modules.setdefault("more_itertools", fake_more)
 
 
 @pytest.fixture(autouse=True)
 def more_itertools_shim() -> Generator[None, None, None]:
-    """Provide a minimal :mod:`more_itertools` shim."""
-    import itertools
+    """No-op fixture retaining the :mod:`more_itertools` shim."""
+    yield
 
-    def chunked(iterable: Iterable[Any], n: int) -> Iterator[tuple[Any, ...]]:
-        iterator = iter(iterable)
-        while True:
-            chunk = tuple(itertools.islice(iterator, n))
-            if not chunk:
-                break
-            yield chunk
 
-    fake_more = types.ModuleType("more_itertools")
-    fake_more.chunked = chunked  # type: ignore[attr-defined]
-    with patch.dict(sys.modules, {"more_itertools": fake_more}):
-        yield
+import json
+
+
+fake_orjson = types.ModuleType("orjson")
+fake_orjson.OPT_INDENT_2 = 2  # type: ignore[attr-defined]
+
+
+def _orjson_dumps(obj: Any, *, option: int | None = None) -> bytes:
+    """Serialize ``obj`` using :mod:`json` as a stand-in for :func:`orjson.dumps`."""
+    indent = 2 if option == fake_orjson.OPT_INDENT_2 else None
+    return json.dumps(obj, indent=indent).encode()
+
+
+fake_orjson.dumps = _orjson_dumps  # type: ignore[attr-defined]
+sys.modules.setdefault("orjson", fake_orjson)
 
 
 @pytest.fixture(autouse=True)
 def orjson_shim() -> Generator[None, None, None]:
-    """Provide a minimal :mod:`orjson` shim using :mod:`json`."""
-    import json
-
-    fake_orjson = types.ModuleType("orjson")
-    fake_orjson.OPT_INDENT_2 = 2  # type: ignore[attr-defined]
-
-    def dumps(obj: Any, *, option: int | None = None) -> bytes:
-        indent = 2 if option == fake_orjson.OPT_INDENT_2 else None
-        return json.dumps(obj, indent=indent).encode()
-
-    fake_orjson.dumps = dumps  # type: ignore[attr-defined]
-    with patch.dict(sys.modules, {"orjson": fake_orjson}):
-        yield
+    """No-op fixture to keep the :mod:`orjson` shim in place."""
+    yield
