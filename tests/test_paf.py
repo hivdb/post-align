@@ -193,6 +193,24 @@ def test_paf_load_missing_alignment_yields_empty_sequences() -> None:
     assert pairs[1][1].seqtext_as_str == ""
 
 
+def test_paf_load_unknown_sequence_yields_empty_texts() -> None:
+    """Sequences absent from PAF lookup should yield empty pairs."""
+
+    from io import StringIO
+
+    from postalign.models import NAPosition, Message
+    from postalign.parsers import paf
+
+    paf_text = "1\t4\t0\t4\t+\tref\t4\t0\t4\t4\t4\t60\tcg:Z:4M\n"
+    paf_stream = StringIO(paf_text)
+    seqs = StringIO(">2\nTTTT\n")
+    ref = StringIO(">ref\nTTTT\n")
+    messages: list[Message] = []
+    pairs = list(paf.load(paf_stream, seqs, ref, NAPosition, messages))
+    assert pairs[0][0].seqtext_as_str == "TTTT"
+    assert pairs[0][1].seqtext_as_str == "TTTT"
+
+
 def test_paf_load_skips_reverse_strand() -> None:
     """Reverse-strand alignments should be ignored during loading."""
     from io import StringIO

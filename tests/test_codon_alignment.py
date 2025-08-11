@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import typer
 
-from postalign.models import NAPosition
+from postalign.models import NAPosition, Sequence
 from postalign.processors.codon_alignment import (
     LEFT,
     REFGAP,
@@ -23,6 +23,10 @@ from postalign.processors.codon_alignment import (
     calc_match_score,
     separate_gaps_from_nas,
     paired_find_best_matches,
+    gather_gaps,
+    adjust_gap_placement,
+    realign_gaps,
+    codon_align,
 )
 
 
@@ -39,6 +43,14 @@ def test_parse_gap_placement_score_invalid() -> None:
 
     with pytest.raises(ValueError):
         parse_gap_placement_score("204foo")
+
+
+def test_parse_gap_placement_score_skips_empty() -> None:
+    """Empty entries should be ignored when parsing placement scores."""
+
+    scores = parse_gap_placement_score("204ins:-5,,205del:3,")
+    assert scores[REFGAP][(204, 0)] == -5
+    assert scores[SEQGAP][(205, 0)] == 3
 
 
 def test_gap_placement_score_callback_missing_name() -> None:
@@ -171,12 +183,44 @@ def test_find_best_matches_fallback() -> None:
     assert NAPosition.as_str(result) == "A"
 
 
+def test_find_best_matches_prefers_scored_position() -> None:
+    """Gap placement scores should influence the chosen insertion index."""
+
+    mynas = NAPosition.init_from_bytes(b"-AAAA")
+    othernas = NAPosition.init_from_bytes(b"AAAA")
+    gps = {(4, 1): 5}
+    with patch(
+        "postalign.processors.codon_alignment.calc_match_score",
+        return_value=0.0,
+    ):
+        result = find_best_matches(
+            mynas, othernas, set(), SEQGAP, gps, False, False
+        )
+    assert NAPosition.as_str(result) == "AAA-A"
+
+
+def test_find_best_matches_any_size_score_and_start() -> None:
+    """Generic position scores should apply when size-specific score absent."""
+
+    mynas = NAPosition.init_from_bytes(b"AAAA-")
+    othernas = NAPosition.init_from_bytes(b"AAAA")
+    gps = {(1, 0): 3}
+    with patch(
+        "postalign.processors.codon_alignment.calc_match_score",
+        return_value=0.0,
+    ):
+        result = find_best_matches(
+            mynas, othernas, set(), SEQGAP, gps, True, False
+        )
+    assert NAPosition.as_str(result) == "-AAAA"
+
+
 def test_paired_find_best_matches_refgap() -> None:
     """REFGAP type should delegate to ``find_best_matches`` with ref NAs."""
 
     ref = NAPosition.init_from_bytes(b"A-A")
     seq = NAPosition.init_from_bytes(b"AAA")
-    gps = {REFGAP: {}, SEQGAP: {}}
+    gps: dict[int, dict[tuple[int, int], int]] = {REFGAP: {}, SEQGAP: {}}
     with patch(
         "postalign.processors.codon_alignment.find_best_matches"
     ) as fbm:
@@ -190,7 +234,7 @@ def test_paired_find_best_matches_seqgap() -> None:
 
     ref = NAPosition.init_from_bytes(b"AAA")
     seq = NAPosition.init_from_bytes(b"A-A")
-    gps = {REFGAP: {}, SEQGAP: {}}
+    gps: dict[int, dict[tuple[int, int], int]] = {REFGAP: {}, SEQGAP: {}}
     with patch(
         "postalign.processors.codon_alignment.find_best_matches"
     ) as fbm:
@@ -221,3 +265,174 @@ def test_move_gaps_to_center() -> None:
     nas = NAPosition.init_from_bytes(b"--AB")
     centered = move_gaps_to_center(nas)
     assert NAPosition.as_str(centered) == "A--B"
+
+
+def test_gather_gaps_relocates_gaps() -> None:
+    """Gap windows should be centered and redundant gaps removed."""
+
+    ref = NAPosition.init_from_bytes(b"ABC")
+    seq = NAPosition.init_from_bytes(b"A--BC")
+    out_ref, out_seq = gather_gaps(ref, seq, 0)
+    assert NAPosition.as_str(out_ref) == "ABC"
+    assert NAPosition.as_str(out_seq) == "A--BC"
+
+
+def test_adjust_gap_placement_extends_windows() -> None:
+    """Codon windows should extend to include flanking codons."""
+
+    from itertools import chain
+
+    refcodons = [
+        NAPosition.init_from_bytes(b"AAA"),
+        NAPosition.init_from_bytes(b"A--"),
+        NAPosition.init_from_bytes(b"CCC"),
+    ]
+    seqcodons = [
+        NAPosition.init_from_bytes(b"AAA"),
+        NAPosition.init_from_bytes(b"AAA"),
+        NAPosition.init_from_bytes(b"CCC"),
+    ]
+    gps: dict[int, dict[tuple[int, int], int]] = {REFGAP: {}, SEQGAP: {}}
+    with patch(
+        "postalign.processors.codon_alignment.extend_codons_until_gap",
+        side_effect=[
+            (
+                [NAPosition.init_from_bytes(b"GGG")],
+                [NAPosition.init_from_bytes(b"GGG")],
+                1,
+            ),
+            (
+                [NAPosition.init_from_bytes(b"TTT")],
+                [NAPosition.init_from_bytes(b"TTT")],
+                1,
+            ),
+        ],
+    ) as ext, patch(
+        "postalign.processors.codon_alignment.paired_find_best_matches",
+        return_value=(
+            list(chain(*refcodons)),
+            list(chain(*seqcodons)),
+        ),
+    ) as pfbm:
+        adjust_gap_placement(refcodons, seqcodons, 1, gps, False, False)
+    assert ext.call_count == 2
+    pfbm.assert_called_once()
+
+
+def test_realign_gaps_invokes_helpers() -> None:
+    """Realignment should delegate to gather and adjustment helpers."""
+
+    ref = NAPosition.init_from_bytes(b"A--A")
+    seq = NAPosition.init_from_bytes(b"AA--")
+    gps: dict[int, dict[tuple[int, int], int]] = {REFGAP: {}, SEQGAP: {}}
+    with patch(
+        "postalign.processors.codon_alignment.gather_gaps",
+        return_value=(ref, seq),
+    ) as gg, patch(
+        "postalign.processors.codon_alignment.group_by_codons",
+        return_value=([ref], [seq]),
+    ) as gbc, patch(
+        "postalign.processors.codon_alignment.adjust_gap_placement",
+        return_value=([ref], [seq]),
+    ) as agp, patch(
+        "postalign.processors.codon_alignment.move_gap_to_codon_end",
+        return_value=[ref],
+    ) as mg:
+        realign_gaps(ref, seq, 1, 1, gps, True, True)
+    gg.assert_called_once()
+    gbc.assert_called_once()
+    agp.assert_called_once()
+    mg.assert_called_once()
+
+
+def test_codon_align_no_gaps_returns_input() -> None:
+    """Inputs without gaps should pass through codon_align unchanged."""
+
+    ref = Sequence(
+        header="r",
+        description="",
+        seqtext=NAPosition.init_from_bytes(b"AAA"),
+        seqid=1,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    seq = Sequence(
+        header="s",
+        description="",
+        seqtext=NAPosition.init_from_bytes(b"AAA"),
+        seqid=1,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    out_ref, out_seq = codon_align(
+        ref,
+        seq,
+        1,
+        1,
+        {REFGAP: {}, SEQGAP: {}},
+        1,
+        3,
+    )
+    assert out_ref.seqtext_as_str == "AAA"
+    assert out_seq.seqtext_as_str == "AAA"
+
+
+def test_codon_alignment_processor_dispatches() -> None:
+    """Processor should skip empty sequences and call ``codon_align``."""
+
+    proc = codon_alignment()
+    empty_ref = Sequence(
+        header="r1",
+        description="",
+        seqtext=[],
+        seqid=1,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    empty_seq = Sequence(
+        header="s1",
+        description="",
+        seqtext=[],
+        seqid=1,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    full_ref = Sequence(
+        header="r2",
+        description="",
+        seqtext=NAPosition.init_from_bytes(b"AAA"),
+        seqid=2,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    full_seq = Sequence(
+        header="s2",
+        description="",
+        seqtext=NAPosition.init_from_bytes(b"AAA"),
+        seqid=2,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    with patch(
+        "postalign.processors.codon_alignment.codon_align",
+        return_value=(full_ref, full_seq),
+    ) as ca:
+        result = list(
+            proc(
+                iter([(empty_ref, empty_seq), (full_ref, full_seq)]),
+                [],
+            )
+        )
+    ca.assert_called_once()
+    assert result[0] == (empty_ref, empty_seq)
+    assert result[1] == (full_ref, full_seq)
+
+
+def test_gap_placement_score_callback_invalid_value() -> None:
+    """Invalid callback values should raise :class:`BadParameter`."""
+
+    ctx = MagicMock()
+    param = MagicMock()
+    param.name = "gps"
+    with pytest.raises(typer.BadParameter):
+        gap_placement_score_callback(ctx, param, ("204foo",))
