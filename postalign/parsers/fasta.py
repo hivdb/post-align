@@ -10,18 +10,26 @@ def load(
     fp: TextIO,
     seqtype: type[Position],
     *,
-    remove_gaps: bool = False
+    remove_gaps: bool = False,
 ) -> Generator[Sequence, None, None]:
+    """Yield sequences from a FASTA file handle.
+
+    :param fp: Open FASTA file object.
+    :param seqtype: Position class for sequence text.
+    :param remove_gaps: Remove ``.`` and ``-`` characters when ``True``.
+    :returns: Generator of parsed :class:`~postalign.models.Sequence` objects.
+    """
+
     header: str = ''
     curseq: bytearray = bytearray()
     seqid: int = 0
 
     def make_seq() -> Sequence:
-        nonlocal seqid
+        nonlocal seqid, curseq
         seqid += 1
         if remove_gaps:
             for gap in GAP_CHARS:
-                curseq.replace(bytes([gap]), b'')
+                curseq = curseq.replace(bytes([gap]), b'')
 
         headerdesc = header.split(' ', 1)
         description = ''
