@@ -6,7 +6,7 @@ This repo uses automation agents (local or CI) to keep code healthy and consiste
 - **Package management**: use `pipenv` for environment and dependency management, but maintain `pyproject.toml` (preferred) and keep `setup.py` / `setup.cfg` in sync if present.
 - **Python**: runtime support starts at **Python 3.11**; develop and run CI on **Python 3.13**.
 - **Static checks**: enforce `mypy` and `flake8` on all tracked Python files.
-- **Tests**: run `pytest` with `pytest-cov`; fail if coverage drops below the configured threshold.
+- **Tests**: run `pytest tests/unit --cov=postalign` and `behave tests/component` (which downloads minimap2 2.17); fail if coverage drops below the configured threshold.
 - **Mocks**: use `unittest.mock`; avoid `monkeypatch` or plain stubs.
 - **Coverage pragmas**: annotate unavoidable no-op statements with
   `# pragma: no cover` and a brief justification. File-wide pragmas are not
@@ -41,7 +41,8 @@ pipenv run flake8 .
 pipenv run mypy .
 
 # Tests + coverage
-pipenv run pytest --cov=postalign --cov-report=term-missing
+pipenv run pytest tests/unit --cov=postalign --cov-report=term-missing
+pipenv run behave tests/component
 
 # Update Pipfile.lock
 pipenv lock --dev --clear

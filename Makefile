@@ -1,6 +1,14 @@
 requirements.txt: Pipfile.lock
 	@pipenv requirements --from-pipfile > requirements.txt
-	@sed -i '' '/^-e \.$$/d' requirements.txt
+@sed -i.bak -- '/^-e \.$/d' requirements.txt && rm -f requirements.txt.bak
+
+test-unit:
+	@pytest tests/unit
+
+test-component:
+	@behave tests/component
+
+test: test-unit test-component
 
 build-docker-builder: requirements.txt
 	@docker pull ubuntu:18.04
@@ -33,4 +41,4 @@ dist/postalign_linux-amd64.tar.gz: dist/linux-amd64
 dist: dist/postalign_linux-amd64.tar.gz
 build: dist
 
-.PHONY: build-docker-builder push-docker-builder
+.PHONY: test-unit test-component test build-docker-builder push-docker-builder

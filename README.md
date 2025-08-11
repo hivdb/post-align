@@ -44,7 +44,8 @@ Linting, type checking and tests:
 ```bash
 pipenv run flake8 .
 pipenv run mypy .
-pipenv run pytest --cov=postalign --cov-report=term-missing
+pipenv run pytest tests/unit --cov=postalign --cov-report=term-missing
+pipenv run behave tests/component  # downloads minimap2 2.17 automatically
 ```
 
 The project currently relies on a minimal `setup.py` for building Cython
