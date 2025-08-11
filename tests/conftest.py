@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
+import json
 import sys
 import types
 from collections.abc import Generator, Iterable, Iterator
@@ -10,6 +12,10 @@ from unittest.mock import MagicMock, patch
 from typing import Any, Callable, TextIO
 
 import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 fake_typer = types.ModuleType("typer")
 
@@ -86,8 +92,17 @@ fake_cython.cclass = lambda cls: cls  # type: ignore[attr-defined]
 fake_cython.bint = bool  # type: ignore[attr-defined]
 
 
-def _declare(type_: object, value: object | None = None, **_: object) -> object:
-    """Mimic :func:`cython.declare` for test shimming."""
+def _declare(
+    type_: object,
+    value: object | None = None,
+    **_: object,
+) -> object:
+    """Mimic :func:`cython.declare` for test shimming.
+
+    :param type_: Placeholder type.
+    :param value: Optional preset value.
+    :returns: Provided value or a sensible default for ``type_``.
+    """
     if value is not None:
         return value
     if type_ is int:
@@ -127,7 +142,9 @@ class _PafRecord(types.SimpleNamespace):
     def from_str(cls, line: str) -> "_PafRecord":
         fields = line.rstrip().split("\t")
         tags = {
-            tag.split(":", 2)[0]: types.SimpleNamespace(value=tag.split(":", 2)[2])
+            tag.split(":", 2)[0]: types.SimpleNamespace(
+                value=tag.split(":", 2)[2]
+            )
             for tag in fields[12:]
         }
         return cls(
@@ -148,7 +165,9 @@ class _PafRecord(types.SimpleNamespace):
 
 
 fake_pafpy.PafRecord = _PafRecord  # type: ignore[attr-defined]
-fake_pafpy.Strand = types.SimpleNamespace(Reverse="-")  # type: ignore[attr-defined]
+fake_pafpy.Strand = types.SimpleNamespace(  # type: ignore[attr-defined]
+    Reverse="-"
+)
 sys.modules.setdefault("pafpy", fake_pafpy)
 
 
@@ -167,9 +186,6 @@ sys.modules.setdefault("rich", fake_rich)
 def rich_shim() -> Generator[None, None, None]:
     """Retain the :mod:`rich` shim for tests."""
     yield
-
-
-import itertools
 
 
 def _chunked(iterable: Iterable[Any], n: int) -> Iterator[tuple[Any, ...]]:
@@ -193,15 +209,18 @@ def more_itertools_shim() -> Generator[None, None, None]:
     yield
 
 
-import json
-
-
 fake_orjson = types.ModuleType("orjson")
 fake_orjson.OPT_INDENT_2 = 2  # type: ignore[attr-defined]
 
 
 def _orjson_dumps(obj: Any, *, option: int | None = None) -> bytes:
-    """Serialize ``obj`` using :mod:`json` as a stand-in for :func:`orjson.dumps`."""
+    """Serialize ``obj`` using :mod:`json` as a stand-in for
+    :func:`orjson.dumps`.
+
+    :param obj: Object to serialize.
+    :param option: Formatting option; supports ``OPT_INDENT_2``.
+    :returns: UTF-8 encoded JSON representation.
+    """
     indent = 2 if option == fake_orjson.OPT_INDENT_2 else None
     return json.dumps(obj, indent=indent).encode()
 
