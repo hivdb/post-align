@@ -26,3 +26,25 @@ def test_gene_range_tuples_callback_missing_value() -> None:
     param = MagicMock()
     with pytest.raises(typer.BadParameter):
         gene_range_tuples_callback(ctx, param, ("G", "1"))
+
+
+def test_gene_range_tuples_callback_refstart_too_small() -> None:
+    """Reference start below 1 should raise :class:`BadParameter`."""
+    from postalign.processors.save_json import gene_range_tuples_callback
+    import typer
+
+    ctx = MagicMock()
+    param = MagicMock()
+    with pytest.raises(typer.BadParameter):
+        gene_range_tuples_callback(ctx, param, ("G", "0", "4"))
+
+
+def test_gene_range_tuples_callback_refend_too_small() -> None:
+    """Reference end must allow at least one codon."""
+    from postalign.processors.save_json import gene_range_tuples_callback
+    import typer
+
+    ctx = MagicMock()
+    param = MagicMock()
+    with pytest.raises(typer.BadParameter):
+        gene_range_tuples_callback(ctx, param, ("G", "2", "3"))

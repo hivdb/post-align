@@ -8,6 +8,9 @@ This repo uses automation agents (local or CI) to keep code healthy and consiste
 - **Static checks**: enforce `mypy` and `flake8` on all tracked Python files.
 - **Tests**: run `pytest` with `pytest-cov`; fail if coverage drops below the configured threshold.
 - **Mocks**: use `unittest.mock`; avoid `monkeypatch` or plain stubs.
+- **Coverage pragmas**: annotate unavoidable no-op statements with
+  `# pragma: no cover` and a brief justification. File-wide pragmas are not
+  allowed.
 - **Docs**: use **Sphinx docstring style**. When you touch a file, add/refresh docstrings.
 - **Dependencies**: keep them up to date with minimal, safe upgrades.
 - **Changes**: when you touch code, you also add/update tests.

@@ -157,3 +157,22 @@ def test_seqs_prior_alignment_callback_ignores_for_non_paf() -> None:
         result = seqs_prior_alignment_callback(ctx, param, buf)
     assert result is None
     assert "ignore -p/--seqs-prior-alignment" in err.getvalue()
+
+
+def test_reference_callback_requires_file_for_non_msa() -> None:
+    """Non-MSA formats should enforce file-based references."""
+    with patch.object(
+        typer.Typer,
+        "result_callback",
+        _noop_result_callback,
+        create=True,
+    ):
+        from postalign.cli import AlignmentFormat, reference_callback
+    ctx = MagicMock()
+    ctx.params = {"alignment_format": AlignmentFormat.PAF}
+    param = MagicMock()
+    param.name = "reference"
+    with patch("builtins.open", side_effect=OSError), pytest.raises(
+        typer.BadParameter
+    ):
+        reference_callback(ctx, param, "ref.fa")

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-def _make_seq(header: str, text: bytes, seqid: int):
+from postalign.models import Sequence, NAPosition
+
+
+def _make_seq(header: str, text: bytes, seqid: int) -> Sequence:
     """Construct a sequence with the given text and identifier."""
-    from postalign.models import Sequence, NAPosition
 
     seqtext = NAPosition.init_from_bytes(text)
     return Sequence(

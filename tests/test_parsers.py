@@ -61,3 +61,37 @@ def test_minimap2_load_errors_on_failure() -> None:
     with patch("postalign.parsers.minimap2.Popen", return_value=proc):
         with pytest.raises(typer.BadParameter):
             list(minimap2.load(fastafp, ref, NAPosition, messages))
+
+
+def test_minimap2_load_handles_timeout() -> None:
+    """Timeouts should kill the process and still return records."""
+    from postalign.parsers import minimap2
+    from postalign.models import NAPosition, Message
+    from subprocess import TimeoutExpired
+
+    fastafp = StringIO(">1\nACG\n")
+    ref = StringIO(">ref\nACG\n")
+    messages: list[Message] = []
+
+    proc = MagicMock()
+    proc.communicate.side_effect = [
+        TimeoutExpired(cmd="mm", timeout=1),
+        ("", ""),
+    ]
+    proc.kill = MagicMock()
+    proc.returncode = 0
+    with patch("postalign.parsers.minimap2.Popen", return_value=proc):
+        list(minimap2.load(fastafp, ref, NAPosition, messages))
+    proc.kill.assert_called_once()
+
+
+def test_msa_load_uses_first_sequence_as_reference() -> None:
+    """MSA loader defaults to first sequence when reference missing."""
+    from postalign.parsers import msa
+    from postalign.models import NAPosition
+
+    fp = StringIO(">ref\nACG\n>query\nAC-\n")
+    pairs = list(msa.load(fp, reference="", seqtype=NAPosition))
+    refseq, seq = pairs[0]
+    assert refseq.header == "ref"
+    assert seq.header == "query"

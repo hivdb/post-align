@@ -39,19 +39,20 @@ def test_translate_codon_frameshift_short() -> None:
     assert translate_codon(nas, fs_as=b"X") == b"X"
 
 
-def test_translate_codons_calls_internal() -> None:
-    """``translate_codons`` should call ``_translate_codon`` for each chunk."""
+def test_translate_codons_translates_chunks() -> None:
+    """``translate_codons`` should translate each codon chunk."""
     from unittest.mock import patch
     from postalign.models import NAPosition
     from postalign.utils import codonutils
 
-    nas = NAPosition.init_from_bytes(b"ATGATG")
-    with patch.object(
-        codonutils, "_translate_codon", return_value=(ord("A"),)
-    ) as mock_trans:
-        result = codonutils.translate_codons(nas)
-        assert result == [b"A", b"A"]
-        assert mock_trans.call_count == 2
+    nas = NAPosition.init_from_bytes(b"ATGTTT")
+
+    def chunk_list(seq, n):
+        for i in range(0, len(seq), n):
+            yield list(seq[i:i + n])
+
+    with patch.object(codonutils, "chunked", chunk_list):
+        assert codonutils.translate_codons(nas) == [b"M", b"F"]
 
 
 def test_get_codons_returns_expected() -> None:
