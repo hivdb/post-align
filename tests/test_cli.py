@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 import typer
 from typing import Callable
+from io import StringIO
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 
@@ -111,3 +113,47 @@ def test_seqs_prior_alignment_callback_requires_file() -> None:
     param.name = 'seqs_prior_alignment'
     with pytest.raises(typer.BadParameter):
         seqs_prior_alignment_callback(ctx, param, None)
+
+
+def test_reference_callback_reads_msa_header(tmp_path: Path) -> None:
+    """MSA references should return the parsed header text."""
+    with patch.object(
+        typer.Typer,
+        "result_callback",
+        _noop_result_callback,
+        create=True,
+    ):
+        from postalign.cli import AlignmentFormat, reference_callback
+
+    ctx = MagicMock()
+    ctx.params = {"alignment_format": AlignmentFormat.MSA}
+    param = MagicMock()
+    param.name = "reference"
+    fasta = tmp_path / "ref.fa"
+    fasta.write_text(">ref\nACG\n")
+    result = reference_callback(ctx, param, str(fasta))
+    assert result == "ref"
+
+
+def test_seqs_prior_alignment_callback_ignores_for_non_paf() -> None:
+    """Non-PAF formats should ignore provided files with a warning."""
+    with patch.object(
+        typer.Typer,
+        "result_callback",
+        _noop_result_callback,
+        create=True,
+    ):
+        from postalign.cli import (
+            AlignmentFormat,
+            seqs_prior_alignment_callback,
+        )
+
+    ctx = MagicMock()
+    ctx.params = {"alignment_format": AlignmentFormat.MSA}
+    param = MagicMock()
+    param.name = "seqs_prior_alignment"
+    buf = StringIO()
+    with patch("sys.stderr", new=StringIO()) as err:
+        result = seqs_prior_alignment_callback(ctx, param, buf)
+    assert result is None
+    assert "ignore -p/--seqs-prior-alignment" in err.getvalue()

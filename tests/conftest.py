@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import types
-from collections.abc import Generator
+from collections.abc import Generator, Iterable, Iterator
 from pathlib import Path
 from unittest.mock import patch
 from typing import Any, Callable, TextIO
@@ -128,4 +128,49 @@ def pafpy_shim() -> Generator[None, None, None]:
     fake_pafpy.PafRecord = object  # type: ignore[attr-defined]
     fake_pafpy.Strand = object  # type: ignore[attr-defined]
     with patch.dict(sys.modules, {"pafpy": fake_pafpy}):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def rich_shim() -> Generator[None, None, None]:
+    """Provide a minimal :mod:`rich` shim with ``print``."""
+    fake_rich = types.ModuleType("rich")
+    fake_rich.print = print  # type: ignore[attr-defined]
+    with patch.dict(sys.modules, {"rich": fake_rich}):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def more_itertools_shim() -> Generator[None, None, None]:
+    """Provide a minimal :mod:`more_itertools` shim."""
+    import itertools
+
+    def chunked(iterable: Iterable[Any], n: int) -> Iterator[tuple[Any, ...]]:
+        iterator = iter(iterable)
+        while True:
+            chunk = tuple(itertools.islice(iterator, n))
+            if not chunk:
+                break
+            yield chunk
+
+    fake_more = types.ModuleType("more_itertools")
+    fake_more.chunked = chunked  # type: ignore[attr-defined]
+    with patch.dict(sys.modules, {"more_itertools": fake_more}):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def orjson_shim() -> Generator[None, None, None]:
+    """Provide a minimal :mod:`orjson` shim using :mod:`json`."""
+    import json
+
+    fake_orjson = types.ModuleType("orjson")
+    fake_orjson.OPT_INDENT_2 = 2  # type: ignore[attr-defined]
+
+    def dumps(obj: Any, *, option: int | None = None) -> bytes:
+        indent = 2 if option == fake_orjson.OPT_INDENT_2 else None
+        return json.dumps(obj, indent=indent).encode()
+
+    fake_orjson.dumps = dumps  # type: ignore[attr-defined]
+    with patch.dict(sys.modules, {"orjson": fake_orjson}):
         yield
