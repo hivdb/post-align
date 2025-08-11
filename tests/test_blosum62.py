@@ -19,6 +19,21 @@ def test_blosum62_deletions_and_frameshift() -> None:
     assert blosum62_score(b"X", b"A") == -1
 
 
+def test_blosum62_penalties_on_second_sequence() -> None:
+    """Second sequence gaps or frameshifts incur penalties."""
+    from postalign.utils.blosum62 import blosum62_score
+
+    assert blosum62_score(b"A", b"-") == -1
+    assert blosum62_score(b"A", b"X") == -1
+
+
+def test_blosum62_half_penalty_for_double_frameshift() -> None:
+    """Two frameshifts should incur half the combined penalty."""
+    from postalign.utils.blosum62 import blosum62_score
+
+    assert blosum62_score(b"X", b"X") == -1
+
+
 def test_blosum62_unknown_amino_acid() -> None:
     """Unrecognized amino acids contribute zero score."""
     from postalign.utils.blosum62 import blosum62_score

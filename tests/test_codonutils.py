@@ -21,6 +21,24 @@ def test_translate_codon_with_ambiguity() -> None:
     assert translate_codon(nas) == b"*CW"
 
 
+def test_translate_codon_inframe_deletion() -> None:
+    """A gap-only codon should translate to the deletion marker."""
+    from postalign.models import NAPosition
+    from postalign.utils.codonutils import translate_codon
+
+    nas = NAPosition.init_gaps(3)
+    assert translate_codon(nas, del_as=b"-") == b"-"
+
+
+def test_translate_codon_frameshift_short() -> None:
+    """Codons shorter than three bases should yield frameshift marker."""
+    from postalign.models import NAPosition
+    from postalign.utils.codonutils import translate_codon
+
+    nas = NAPosition.init_from_bytes(b"AC")
+    assert translate_codon(nas, fs_as=b"X") == b"X"
+
+
 def test_translate_codons_calls_internal() -> None:
     """``translate_codons`` should call ``_translate_codon`` for each chunk."""
     from unittest.mock import patch
@@ -51,3 +69,10 @@ def test_compare_codon_match_and_mismatch() -> None:
     assert compare_codon(b"ATG", b"ATR") is True
     assert compare_codon(b"ATG", b"ATN") is False
     assert compare_codon(b"ATG", b"ATA") is False
+
+
+def test_compare_codon_ambiguous_mismatch() -> None:
+    """Mismatched ambiguous bases should return ``False``."""
+    from postalign.utils.codonutils import compare_codon
+
+    assert compare_codon(b"ACG", b"ACY") is False

@@ -7,9 +7,74 @@ import types
 from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import patch
-from typing import Any, Callable
+from typing import Any, Callable, TextIO
 
 import pytest
+
+fake_typer = types.ModuleType("typer")
+
+
+class _Typer:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def result_callback(
+        self, func: Callable[..., Any] | None = None
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        def decorator(inner: Callable[..., Any]) -> Callable[..., Any]:
+            return inner
+
+        if func is not None:
+            return decorator(func)
+        return decorator
+
+    def callback(
+        self, *args: Any, **kwargs: Any
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            return func
+
+        return decorator
+
+    def command(
+        self, *args: Any, **kwargs: Any
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            return func
+
+        return decorator
+
+
+class _BadParameter(Exception):
+    pass
+
+
+fake_typer.Typer = _Typer  # type: ignore[attr-defined]
+fake_typer.BadParameter = _BadParameter  # type: ignore[attr-defined]
+fake_typer.FileText = TextIO  # type: ignore[attr-defined]
+fake_typer.FileTextWrite = TextIO  # type: ignore[attr-defined]
+
+
+class _Context:
+    def __init__(self) -> None:
+        self.params: dict[str, Any] = {}
+
+
+class _CallbackParam:
+    def __init__(self, name: str | None = None) -> None:
+        self.name = name
+
+
+def _option(*_args: Any, **_kwargs: Any) -> None:  # noqa: D401
+    """Return a no-op Typer option placeholder."""
+    return None
+
+
+fake_typer.Context = _Context  # type: ignore[attr-defined]
+fake_typer.CallbackParam = _CallbackParam  # type: ignore[attr-defined]
+fake_typer.Option = _option  # type: ignore[attr-defined]
+fake_typer.Argument = _option  # type: ignore[attr-defined]
+sys.modules.setdefault("typer", fake_typer)
 
 
 @pytest.fixture(autouse=True)
