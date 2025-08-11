@@ -1,6 +1,5 @@
 """Processor performing codon alignment."""
 
-import inspect
 import re
 import typer
 import cython  # type: ignore
@@ -610,44 +609,6 @@ def parse_gap_placement_score(value: str) -> dict[
     return scores
 
 
-@cython.ccall
-@cython.returns(dict)
-def gap_placement_score_callback(
-    ctx: typer.Context,
-    param: typer.CallbackParam,
-    value: tuple[str, ...] | list[str] | str | None,
-) -> dict[int, dict[tuple[int, int], int]]:
-    """Parse ``--gap-placement-score`` arguments.
-
-    The option may be provided multiple times depending on Typer's
-    capabilities. When ``multiple`` is supported the values arrive as a
-    tuple or list; otherwise Typer supplies a single comma-delimited string.
-
-    :param ctx: Typer context (unused).
-    :param param: Callback parameter definition.
-    :param value: Sequence or string of score specifications.
-    :returns: Nested mapping of gap placement scores.
-    :raises typer.BadParameter: On invalid input value or metadata.
-    """
-    if not param.name:
-        raise typer.BadParameter(
-            'Internal error (gap_placement_score_callback:1)'
-        )
-    if value is None or value == "" or value == ():  # no scores provided
-        return {}
-    if isinstance(value, (tuple, list)):
-        raw = ",".join(value)
-    else:
-        raw = value
-    try:
-        result: dict[
-            int, dict[tuple[int, int], int]
-        ] = parse_gap_placement_score(raw)
-        return result
-    except ValueError as exp:  # pragma: no cover - defensive
-        raise typer.BadParameter(str(exp))
-
-
 _GAP_PLACEMENT_HELP = (
     'Bonus (positive number) or penalty (negative number) for gaps '
     'appear at certain NA position (relative to the WHOLE ref seq) '
@@ -660,20 +621,6 @@ _GAP_PLACEMENT_HELP = (
     'Multiple scores can be delimited by commas, such as '
     '204ins:-5,2041/12del:10.'
 )
-
-if 'multiple' in inspect.signature(typer.Option).parameters:
-    _GAP_PLACEMENT_OPTION = typer.Option(
-        (), '--gap-placement-score',
-        callback=gap_placement_score_callback,
-        multiple=True,
-        help=_GAP_PLACEMENT_HELP,
-    )  # type: ignore[call-overload]
-else:  # pragma: no cover - executed on Typer <0.15
-    _GAP_PLACEMENT_OPTION = typer.Option(
-        None, '--gap-placement-score',
-        callback=gap_placement_score_callback,
-        help=_GAP_PLACEMENT_HELP,
-    )
 
 
 @cli.command('codon-alignment')
@@ -701,12 +648,12 @@ def codon_alignment(
         ),
     ] = 10,
     gap_placement_score: Annotated[
-        # For NASize, 0 means any size
-        #   Indel         NAPos NASize Score
-        #     v              v     v     v
-        dict[int, dict[tuple[int, int], int]],
-        _GAP_PLACEMENT_OPTION,
-    ] = {},
+        list[str] | None,
+        typer.Option(
+            None, '--gap-placement-score',
+            help=_GAP_PLACEMENT_HELP,
+        ),
+    ] = None,
     ref_start: Annotated[int, typer.Argument()] = 1,
     ref_end: Annotated[int, typer.Argument()] = -1,
     # XXX: see https://github.com/cython/cython/issues/2753
@@ -721,11 +668,17 @@ def codon_alignment(
     :param min_gap_distance: Minimal nucleotide gap distance of the output.
     :param window_size: Amino acid window size for finding optimal placement.
     :param gap_placement_score: Bonus or penalty scores for gaps at specific
-        positions.
+        positions, expressed as repeated ``--gap-placement-score`` options in
+        the form ``<pos>[/<size>](ins|del):<score>``.
     :param ref_start: Start position relative to reference sequence.
     :param ref_end: End position relative to reference sequence.
     :raises typer.BadParameter: If provided positions are invalid.
     """
+    if gap_placement_score:
+        gap_scores = parse_gap_placement_score(','.join(gap_placement_score))
+    else:
+        gap_scores = {REFGAP: {}, SEQGAP: {}}
+
     if ref_start < 1:
         raise typer.BadParameter(
             f'argument <REF_START>:{ref_start} must be not less than 1'
@@ -762,7 +715,7 @@ def codon_alignment(
                     seq,
                     min_gap_distance,
                     window_size,
-                    gap_placement_score,
+                    gap_scores,
                     ref_start, my_ref_end
                 )
 

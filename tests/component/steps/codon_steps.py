@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 import typer
-from behave import given, then, when  # type: ignore[import-not-found,import-untyped]
+from behave import (  # type: ignore[import-not-found,import-untyped]
+    given,
+    then,
+    when,
+)
 
 if not hasattr(typer.Typer, "result_callback"):
     def result_callback(
