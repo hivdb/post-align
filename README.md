@@ -33,7 +33,7 @@ The typical workflow runs minimap2 to generate alignments and writes the
 post‑processed result as JSON:
 
 ```bash
-pipenv run post-align -i reads.fasta -r ref.fasta -o result.json -f MINIMAP2 \
+pipenv run post-align -i reads.fas -r ref.fas -o result.json -f MINIMAP2 \
     save-json
 ```
 
