@@ -136,28 +136,45 @@ def test_insert_unaligned_region_ref_only_noop() -> None:
     assert NAPosition.as_str(seqtext) == "AB"
 
 
-def test_paf_load_no_alignment_returns_error() -> None:
+def test_paf_load_missing_alignment_yields_empty_pair() -> None:
     """Sequences without matching PAF entries should yield empty texts."""
     from io import StringIO
-    from unittest.mock import patch
-    import importlib
-    import sys
-    import pafpy  # type: ignore[import-untyped]
     from postalign.models import NAPosition, Message
+    from postalign.parsers import paf
 
     paf_stream = StringIO("")
     seqs = StringIO(">1\nAC\n")
     ref = StringIO(">ref\nAC\n")
     messages: list[Message] = []
-    with patch.dict(sys.modules, {"pafpy": pafpy}):
-        import postalign.parsers.paf as paf_module
-        paf_module = importlib.reload(paf_module)
-        refseq, seq = list(
-            paf_module.load(paf_stream, seqs, ref, NAPosition, messages)
-        )[0]
-        assert refseq.seqtext_as_str == ""
-        assert seq.seqtext_as_str == ""
-        paf_module = importlib.reload(paf_module)
+    refseq, seq = next(
+        iter(paf.load(paf_stream, seqs, ref, NAPosition, messages))
+    )
+    assert refseq.seqtext_as_str == ""
+    assert seq.seqtext_as_str == ""
+
+
+def test_paf_load_inserts_unaligned_region() -> None:
+    """Unaligned sequence regions should be inserted with gaps in reference."""
+    from io import StringIO
+    from postalign.models import NAPosition, Message, PositionFlag
+    from postalign.parsers import paf
+
+    paf_text = (
+        "1\t6\t0\t2\t+\tref\t4\t0\t2\t2\t2\t60\tcg:Z:2M\n"
+        "1\t6\t4\t6\t+\tref\t4\t2\t4\t2\t2\t60\tcg:Z:2M\n"
+    )
+    paf_stream = StringIO(paf_text)
+    seqs = StringIO(">1\nACNNGT\n")
+    ref = StringIO(">ref\nACGT\n")
+    messages: list[Message] = []
+    refseq, seq = next(
+        iter(paf.load(paf_stream, seqs, ref, NAPosition, messages))
+    )
+    assert refseq.seqtext_as_str == "AC--GT"
+    assert seq.seqtext_as_str == "ACNNGT"
+    assert all(
+        pos.flag & PositionFlag.UNALIGNED for pos in seq.seqtext[2:4]
+    )
 
 
 def test_paf_load_skips_reverse_strand() -> None:

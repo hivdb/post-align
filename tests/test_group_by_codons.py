@@ -68,3 +68,16 @@ def test_find_codon_trim_slice_no_trim() -> None:
     ]
     trim_slice = find_codon_trim_slice(codons)
     assert trim_slice == slice(0, 2)
+
+
+def test_find_codon_trim_slice_all_gaps() -> None:
+    """All-gap codons should result in an empty slice."""
+    from postalign.models import NAPosition
+    from postalign.utils.group_by_codons import find_codon_trim_slice
+
+    codons = [
+        NAPosition.init_from_bytes(b"---"),
+        NAPosition.init_from_bytes(b"---"),
+    ]
+    trim_slice = find_codon_trim_slice(codons)
+    assert trim_slice == slice(2, 0)

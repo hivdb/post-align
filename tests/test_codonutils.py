@@ -39,6 +39,15 @@ def test_translate_codon_frameshift_short() -> None:
     assert translate_codon(nas, fs_as=b"X") == b"X"
 
 
+def test_translate_codon_stop() -> None:
+    """Stop codons should translate to the stop symbol."""
+    from postalign.models import NAPosition
+    from postalign.utils.codonutils import translate_codon
+
+    nas = NAPosition.init_from_bytes(b"TGA")
+    assert translate_codon(nas) == b"*"
+
+
 def test_translate_codons_translates_chunks() -> None:
     """``translate_codons`` should translate each codon chunk."""
     from unittest.mock import patch
@@ -62,6 +71,15 @@ def test_get_codons_returns_expected() -> None:
     from postalign.utils.codonutils import get_codons
 
     assert get_codons(ord(b"M")) == [b"ATG"]
+
+
+def test_get_codons_unknown_raises_key_error() -> None:
+    """Unknown amino acids should raise :class:`KeyError`."""
+    from postalign.utils.codonutils import get_codons
+    import pytest
+
+    with pytest.raises(KeyError):
+        get_codons(ord(b"?"))
 
 
 def test_compare_codon_match_and_mismatch() -> None:

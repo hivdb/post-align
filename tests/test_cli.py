@@ -224,6 +224,31 @@ def test_seqs_prior_alignment_callback_passes_through_for_paf() -> None:
     assert result is handle
 
 
+def test_seqs_prior_alignment_callback_warns_for_msa() -> None:
+    """Providing sequences for MSA format should warn and return ``None``."""
+
+    with patch.object(
+        typer.Typer,
+        "result_callback",
+        _noop_result_callback,
+        create=True,
+    ):
+        from postalign.cli import (
+            AlignmentFormat,
+            seqs_prior_alignment_callback,
+        )
+
+    ctx = MagicMock()
+    ctx.params = {"alignment_format": AlignmentFormat.MSA}
+    param = MagicMock()
+    param.name = "seqs_prior_alignment"
+    handle = StringIO()
+    with patch("sys.stderr", new_callable=StringIO) as err:
+        result = seqs_prior_alignment_callback(ctx, param, handle)
+    assert result is None
+    assert "ignore -p/--seqs-prior-alignment" in err.getvalue()
+
+
 def test_process_pipeline_requires_nucleotides() -> None:
     """Pipeline should reject amino acid sequences."""
 

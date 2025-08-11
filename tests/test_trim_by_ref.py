@@ -53,6 +53,18 @@ def test_trim_by_ref_processor_skips_unaligned() -> None:
     assert seq_out.seqtext == ""
 
 
+def test_trim_by_ref_processor_no_trim_on_gapless_ref() -> None:
+    """Processor leaves sequences unchanged when reference lacks edge gaps."""
+    from postalign.processors.trim_by_ref import trim_by_ref
+
+    ref = _make_seq("ref", b"ACGT", 1)
+    seq = _make_seq("seq", b"AC-T", 2)
+    proc = trim_by_ref()
+    out_ref, out_seq = list(proc([(ref, seq)], []))[0]
+    assert out_ref.seqtext_as_str == "ACGT"
+    assert out_seq.seqtext_as_str == "AC-T"
+
+
 def test_find_trim_slice_no_gaps() -> None:
     """Sequences without leading/trailing gaps yield empty slice."""
     from postalign.processors.trim_by_ref import find_trim_slice
