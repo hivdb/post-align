@@ -47,7 +47,9 @@ def test_translate_codons_translates_chunks() -> None:
 
     nas = NAPosition.init_from_bytes(b"ATGTTT")
 
-    def chunk_list(seq, n):
+    from collections.abc import Iterator
+
+    def chunk_list(seq: list, n: int) -> Iterator[list]:
         for i in range(0, len(seq), n):
             yield list(seq[i:i + n])
 

@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import pytest
 import typer
+import sys
+from types import ModuleType
 from typing import Callable
 from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+_rich_stub = ModuleType("rich")
+_rich_stub.print = print  # type: ignore[attr-defined]
+sys.modules.setdefault("rich", _rich_stub)
 
 
 def _noop_result_callback(
@@ -176,3 +182,87 @@ def test_reference_callback_requires_file_for_non_msa() -> None:
         typer.BadParameter
     ):
         reference_callback(ctx, param, "ref.fa")
+
+
+def test_seqs_prior_alignment_callback_missing_name() -> None:
+    """Missing parameter name should raise :class:`BadParameter`."""
+
+    with patch.object(
+        typer.Typer,
+        "result_callback",
+        _noop_result_callback,
+        create=True,
+    ):
+        from postalign.cli import (
+            AlignmentFormat,
+            seqs_prior_alignment_callback,
+        )
+
+    ctx = MagicMock()
+    ctx.params = {"alignment_format": AlignmentFormat.PAF}
+    param = MagicMock()
+    param.name = None
+    with pytest.raises(typer.BadParameter):
+        seqs_prior_alignment_callback(ctx, param, StringIO())
+
+
+def test_seqs_prior_alignment_callback_passes_through_for_paf() -> None:
+    """PAF format should return the provided handle."""
+
+    with patch.object(
+        typer.Typer,
+        "result_callback",
+        _noop_result_callback,
+        create=True,
+    ):
+        from postalign.cli import (
+            AlignmentFormat,
+            seqs_prior_alignment_callback,
+        )
+
+    ctx = MagicMock()
+    ctx.params = {"alignment_format": AlignmentFormat.PAF}
+    param = MagicMock()
+    param.name = "seqs_prior_alignment"
+    handle = StringIO()
+    result = seqs_prior_alignment_callback(ctx, param, handle)
+    assert result is handle
+
+
+def test_process_pipeline_requires_nucleotides() -> None:
+    """Pipeline should reject amino acid sequences."""
+
+    with patch.object(
+        typer.Typer,
+        "result_callback",
+        _noop_result_callback,
+        create=True,
+    ):
+        from collections.abc import Iterable
+        from postalign.cli import process_pipeline, AlignmentFormat
+        from postalign.processor import Processor
+        from postalign.models import Message
+        from postalign.models.sequence import RefSeqPair
+
+    def dummy_proc(
+        iterator: Iterable[RefSeqPair],
+        messages: list[Message],
+    ) -> list[str]:
+        return ["out"]
+
+    proc = Processor("out", True, dummy_proc)
+    input_alignment = StringIO()
+    output = StringIO()
+    with pytest.raises(typer.BadParameter):
+        process_pipeline(
+            [proc],
+            input_alignment,
+            None,
+            output,
+            AlignmentFormat.MSA,
+            "ref",
+            False,
+            False,
+            False,
+            None,
+        )

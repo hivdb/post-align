@@ -95,3 +95,10 @@ def test_msa_load_uses_first_sequence_as_reference() -> None:
     refseq, seq = pairs[0]
     assert refseq.header == "ref"
     assert seq.header == "query"
+
+
+def test_fasta_dump_noop() -> None:
+    """Dumping sequences should complete without error."""
+    from postalign.parsers import fasta
+
+    fasta.dump([], StringIO(), "NA")

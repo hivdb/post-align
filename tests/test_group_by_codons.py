@@ -42,3 +42,29 @@ def test_group_by_gene_codons() -> None:
     assert [NAPosition.as_str(c) for c in results[0][1]] == ["ATG"]
     assert results[1][0] == "geneB"
     assert [NAPosition.as_str(c) for c in results[1][1]] == ["AAA"]
+
+
+def test_group_by_gene_codons_multiple_ranges() -> None:
+    """Gene ranges spanning disjoint segments should be concatenated."""
+    from postalign.models import NAPosition
+    from postalign.utils.group_by_codons import group_by_gene_codons
+
+    ref = NAPosition.init_from_bytes(b"ATGAAATTT")
+    seq = NAPosition.init_from_bytes(b"ATGAAATTT")
+    genes = [("geneA", [(1, 3), (7, 9)])]
+    results = group_by_gene_codons(ref, seq, genes)
+    assert results[0][0] == "geneA"
+    assert [NAPosition.as_str(c) for c in results[0][1]] == ["ATG", "TTT"]
+
+
+def test_find_codon_trim_slice_no_trim() -> None:
+    """When no edge gaps exist, the full slice should be returned."""
+    from postalign.models import NAPosition
+    from postalign.utils.group_by_codons import find_codon_trim_slice
+
+    codons = [
+        NAPosition.init_from_bytes(b"ATG"),
+        NAPosition.init_from_bytes(b"AAA"),
+    ]
+    trim_slice = find_codon_trim_slice(codons)
+    assert trim_slice == slice(0, 2)
