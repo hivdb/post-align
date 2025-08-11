@@ -68,3 +68,22 @@ def test_cigar_repr(cigar_cls: Type[Any]) -> None:
     """``repr`` should show CIGAR string and offsets."""
     cigar = cigar_cls(1, 2, "5M")
     assert repr(cigar) == "<CIGAR '5M' ref_start=1 seq_start=2>"
+
+
+def test_shrink_by_ref_to_empty(cigar_cls: Type[Any]) -> None:
+    """Keeping size below the first operation should yield an empty CIGAR."""
+    cigar = cigar_cls(0, 0, "5M")
+    shrunk = cigar.shrink_by_ref(0)
+    assert shrunk.get_cigar_string() == "0M"
+
+
+def test_get_alignment_handles_ref_skip(
+    cigar_cls: Type[Any], na_position_cls: Type[Any]
+) -> None:
+    """Reference skip ``N`` should behave like a deletion."""
+    ref = na_position_cls.init_from_bytes(b"ACGT")
+    seq = na_position_cls.init_from_bytes(b"AGT")
+    cigar = cigar_cls(0, 0, "1M1N2M")
+    ref_aln, seq_aln = cigar.get_alignment(ref, seq, na_position_cls)
+    assert "".join(str(p) for p in ref_aln) == "ACGT"
+    assert "".join(str(p) for p in seq_aln) == "A-GT"

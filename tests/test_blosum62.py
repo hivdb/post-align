@@ -46,3 +46,17 @@ def test_blosum62_empty_sequences() -> None:
     from postalign.utils.blosum62 import blosum62_score
 
     assert blosum62_score(b"", b"") == 0
+
+
+def test_blosum62_mismatched_lengths() -> None:
+    """Extra residues in one sequence should be ignored in scoring."""
+    from postalign.utils.blosum62 import blosum62_score
+
+    assert blosum62_score(b"AAA", b"A") == 4
+
+
+def test_blosum62_lowercase_ignored() -> None:
+    """Lowercase amino acids should be treated as unknown and score zero."""
+    from postalign.utils.blosum62 import blosum62_score
+
+    assert blosum62_score(b"a", b"a") == 0

@@ -51,3 +51,25 @@ def test_save_fasta_preserve_order_skips_ref_for_nonsequential() -> None:
     proc = save_fasta(preserve_order=True)
     output = list(proc([(ref, seq)], []))
     assert output == [">seq\n", "AA\n"]
+
+
+def test_save_fasta_without_modifiers() -> None:
+    """Headers should omit modifiers when the flag is disabled."""
+    from postalign.processors.save_fasta import save_fasta
+
+    ref = _make_seq("ref", 1, b"AA")
+    seq = _make_seq("seq", 2, b"AA")
+    proc = save_fasta(modifiers=False)
+    output = list(proc([(ref, seq)], []))
+    assert output == [">ref\n", "AA\n", ">seq\n", "AA\n"]
+
+
+def test_save_fasta_defaults_include_ref_first() -> None:
+    """Default settings should emit the reference for the first pair."""
+    from postalign.processors.save_fasta import save_fasta
+
+    ref = _make_seq("ref", 1, b"AA")
+    seq = _make_seq("seq", 2, b"AA")
+    proc = save_fasta()
+    output = list(proc([(ref, seq)], []))
+    assert output == [">ref\n", "AA\n", ">seq\n", "AA\n"]
