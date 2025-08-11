@@ -21,3 +21,17 @@ def test_iupac_score_perfect_match() -> None:
     from postalign.utils.iupac import iupac_score
 
     assert iupac_score(ord(b"A"), ord(b"A")) == 1
+
+
+def test_iupac_score_ambiguous_vs_gap() -> None:
+    """Ambiguous bases against gaps should score as full mismatches."""
+    from postalign.utils.iupac import iupac_score
+
+    assert iupac_score(ord(b"W"), ord(b"-")) == -1
+
+
+def test_iupac_score_ambiguous_mismatch() -> None:
+    """Disjoint ambiguous bases should incur maximal penalty."""
+    from postalign.utils.iupac import iupac_score
+
+    assert iupac_score(ord(b"R"), ord(b"Y")) == -1

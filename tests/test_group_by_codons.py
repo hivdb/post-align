@@ -81,3 +81,15 @@ def test_find_codon_trim_slice_all_gaps() -> None:
     ]
     trim_slice = find_codon_trim_slice(codons)
     assert trim_slice == slice(2, 0)
+
+
+def test_group_by_codons_ignores_leading_gaps() -> None:
+    """Leading gaps should not initiate a new codon."""
+    from postalign.models import NAPosition
+    from postalign.utils.group_by_codons import group_by_codons
+
+    ref = NAPosition.init_from_bytes(b"-ATG")
+    seq = NAPosition.init_from_bytes(b"-ATG")
+    ref_codons, seq_codons = group_by_codons(ref, seq)
+    assert [NAPosition.as_str(c) for c in ref_codons] == ["ATG"]
+    assert [NAPosition.as_str(c) for c in seq_codons] == ["ATG"]

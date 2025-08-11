@@ -97,3 +97,19 @@ def test_compare_codon_ambiguous_mismatch() -> None:
     from postalign.utils.codonutils import compare_codon
 
     assert compare_codon(b"ACG", b"ACY") is False
+
+
+def test_translate_codons_frameshift_last_codon() -> None:
+    """Trailing incomplete codons should yield a frameshift marker."""
+    from postalign.models import NAPosition
+    from postalign.utils.codonutils import translate_codons
+
+    nas = NAPosition.init_from_bytes(b"ATGA")
+    assert translate_codons(nas) == [b"M", b"X"]
+
+
+def test_compare_codon_highly_ambiguous() -> None:
+    """Highly ambiguous target bases should return ``False``."""
+    from postalign.utils.codonutils import compare_codon
+
+    assert compare_codon(b"ATG", b"BTG") is False
