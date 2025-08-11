@@ -1,6 +1,5 @@
 #! /usr/bin/env python
-
-from pathlib import Path
+"""Build configuration for Cython extensions."""
 
 import setuptools
 from Cython.Build import cythonize  # type: ignore
@@ -42,23 +41,6 @@ extensions = [
 ]
 
 
-def strip_comments(line: str) -> str:
-    """Remove comments and index options from a requirement line."""
-
-    if line.startswith("-i "):
-        return ""
-    return line.split("#", 1)[0].strip()
-
-
-def req(filename: str) -> list[str]:
-    """Load dependencies from *filename* and return a list of requirements."""
-
-    with Path(filename).open() as fp:
-        requires: set[str] = {strip_comments(ln) for ln in fp.readlines()}
-        requires.discard("")
-    return list(requires)
-
-
 if __name__ == "__main__":
     setuptools.setup(
         ext_modules=cythonize(
@@ -69,5 +51,4 @@ if __name__ == "__main__":
                 "linetrace": False,
             },
         ),  # type: ignore[no-untyped-call]
-        install_requires=req("requirements.txt"),
     )

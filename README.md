@@ -47,7 +47,7 @@ pipenv run mypy .
 pipenv run pytest --cov=postalign --cov-report=term-missing
 ```
 
-The project currently relies on `setup.py`/`setup.cfg` for building Cython
+The project currently relies on a minimal `setup.py` for building Cython
 extensions while `pyproject.toml` provides the build backend. A future goal is
 to consolidate all metadata into `pyproject.toml` once Cython support is
 sufficient. To keep `requirements.txt` in sync with the Pipfile, regenerate it

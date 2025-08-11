@@ -7,7 +7,7 @@ name = "post-align"
 dynamic = ["version", "dependencies"]
 description = "A post alignment toolkit for refining pairwise/multiple alignment sequences."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 authors = [{name = "Philip Tzou", email = "philiptz@stanford.edu"}]
 license = {text = "MIT"}
 classifiers = [
@@ -19,6 +19,8 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
