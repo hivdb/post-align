@@ -359,3 +359,136 @@ def test_paf_load_ref_overlap_shrinks_cigar() -> None:
         # The first alignment should be shrunk to length 2
         assert "0,2,2M" in refseq.modifiers.last_modifier.text
         paf_module = importlib.reload(paf_module)
+
+
+def test_paf_load_ref_overlap_skips_alignment() -> None:
+    """Fully overlapping reference alignments should be omitted."""
+    from io import StringIO
+    from types import SimpleNamespace, ModuleType
+    from unittest.mock import patch
+    import importlib
+    import sys
+    from postalign.models import NAPosition, Message
+
+    class FakePafRecord(SimpleNamespace):
+        @classmethod
+        def from_str(cls, line: str) -> "FakePafRecord":
+            parts = line.strip().split("\t")
+            return cls(
+                qname=parts[0],
+                qlen=int(parts[1]),
+                qstart=int(parts[2]),
+                qend=int(parts[3]),
+                strand=parts[4],
+                tname=parts[5],
+                tlen=int(parts[6]),
+                tstart=int(parts[7]),
+                tend=int(parts[8]),
+                mlen=int(parts[9]),
+                blen=int(parts[10]),
+                mapq=int(parts[11]),
+                tags={"cg": SimpleNamespace(value=parts[12].split(":")[-1])},
+            )
+
+    fake_pafpy = ModuleType("pafpy")
+    fake_pafpy.PafRecord = FakePafRecord  # type: ignore[attr-defined]
+    fake_pafpy.Strand = SimpleNamespace(  # type: ignore[attr-defined]
+        Reverse="-",
+    )
+
+    paf_text = (
+        "1\t8\t0\t4\t+\tref\t8\t0\t4\t4\t4\t60\tcg:Z:4M\n"
+        "1\t8\t4\t8\t+\tref\t8\t0\t4\t4\t4\t60\tcg:Z:4M\n"
+    )
+    paf_stream = StringIO(paf_text)
+    seqs = StringIO(">1\nAAAAAAAA\n")
+    ref = StringIO(">ref\nAAAAAAAA\n")
+    messages: list[Message] = []
+    with patch.dict(sys.modules, {"pafpy": fake_pafpy}):
+        import postalign.parsers.paf as paf_module
+        paf_module = importlib.reload(paf_module)
+        refseq, _ = next(
+            iter(paf_module.load(paf_stream, seqs, ref, NAPosition, messages))
+        )
+        assert any(
+            "REF has already been aligned" in m.message for m in messages
+        )
+        assert ";" not in refseq.modifiers.last_modifier.text
+        paf_module = importlib.reload(paf_module)
+
+
+def test_paf_load_masks_reused_unaligned_positions() -> None:
+    """Unaligned segments reusing aligned positions become gaps."""
+    from io import StringIO
+    from types import SimpleNamespace, ModuleType
+    from unittest.mock import patch
+    import importlib
+    import sys
+    from postalign.models import NAPosition, Sequence, Message
+
+    ref_text = NAPosition.init_from_bytes(b"AAAAAAAA")
+    refseq = Sequence(
+        header="ref",
+        description="",
+        seqtext=ref_text,
+        seqid=0,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    seq_text = NAPosition.init_from_bytes(b"AAAATTTT")
+    for idx, pos in enumerate(seq_text[4:], start=1):
+        pos.pos = idx
+    seq = Sequence(
+        header="seq",
+        description="",
+        seqtext=seq_text,
+        seqid=1,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+
+    fake_pafpy = ModuleType("pafpy")
+    fake_pafpy.PafRecord = SimpleNamespace(  # type: ignore[attr-defined]
+        from_str=lambda line: SimpleNamespace(
+            qname="1",
+            qlen=8,
+            qstart=0,
+            qend=4,
+            strand="+",
+            tname="ref",
+            tlen=8,
+            tstart=0,
+            tend=4,
+            mlen=4,
+            blen=4,
+            mapq=60,
+            tags={"cg": SimpleNamespace(value="4M")},
+        )
+    )
+    fake_pafpy.Strand = SimpleNamespace(  # type: ignore[attr-defined]
+        Reverse="-",
+    )
+
+    paf_stream = StringIO(
+        "1\t8\t0\t4\t+\tref\t8\t0\t4\t4\t4\t60\tcg:Z:4M\n"
+    )
+    messages: list[Message] = []
+    with patch.dict(sys.modules, {"pafpy": fake_pafpy}), patch(
+        "postalign.parsers.paf.fasta.load",
+        side_effect=[iter([refseq]), iter([seq])],
+    ):
+        import postalign.parsers.paf as paf_module
+        paf_module = importlib.reload(paf_module)
+        _, seq_out = next(
+            iter(
+                paf_module.load(
+                    paf_stream,
+                    StringIO(""),
+                    StringIO(""),
+                    NAPosition,
+                    messages,
+                )
+            )
+        )
+        assert seq_out.seqtext_as_str.endswith("----")
+        paf_module = importlib.reload(paf_module)

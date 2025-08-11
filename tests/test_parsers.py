@@ -85,6 +85,28 @@ def test_minimap2_load_handles_timeout() -> None:
     proc.kill.assert_called_once()
 
 
+def test_minimap2_load_invokes_paf() -> None:
+    """Successful minimap2 execution should delegate to the PAF loader."""
+    from postalign.parsers import minimap2
+    from postalign.models import NAPosition, Message
+    from io import StringIO
+
+    fastafp = StringIO(">1\nACG\n")
+    ref = StringIO(">ref\nACG\n")
+    messages: list[Message] = []
+
+    proc = MagicMock()
+    proc.communicate.return_value = ("paf", "")
+    proc.returncode = 0
+    paf_pair = (MagicMock(), MagicMock())
+    with patch("postalign.parsers.minimap2.Popen", return_value=proc), patch(
+        "postalign.parsers.minimap2.paf.load", return_value=iter([paf_pair])
+    ) as mock_paf:
+        result = list(minimap2.load(fastafp, ref, NAPosition, messages))
+    mock_paf.assert_called_once()
+    assert result == [paf_pair]
+
+
 def test_msa_load_uses_first_sequence_as_reference() -> None:
     """MSA loader defaults to first sequence when reference missing."""
     from postalign.parsers import msa

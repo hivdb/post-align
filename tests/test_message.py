@@ -11,3 +11,11 @@ def test_message_string_and_dict() -> None:
     assert str(message) == "[WARNING] 1:issue"
     assert repr(message) == "<Message [WARNING] 1:issue>"
     assert message.to_dict() == {"level": "WARNING", "message": "issue"}
+
+
+def test_message_level_enum_values() -> None:
+    """Enum members should expose their integer levels."""
+    from postalign.models.message import MessageLevel
+
+    assert MessageLevel.INFO.value == 0
+    assert MessageLevel.ERROR.value == 2

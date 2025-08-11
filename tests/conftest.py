@@ -6,7 +6,7 @@ import sys
 import types
 from collections.abc import Generator, Iterable, Iterator
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from typing import Any, Callable, TextIO
 
 import pytest
@@ -133,10 +133,10 @@ def pafpy_shim() -> Generator[None, None, None]:
 
 @pytest.fixture(autouse=True)
 def rich_shim() -> Generator[None, None, None]:
-    """Provide a minimal :mod:`rich` shim with ``print``."""
-    fake_rich = types.ModuleType("rich")
-    fake_rich.print = print  # type: ignore[attr-defined]
-    with patch.dict(sys.modules, {"rich": fake_rich}):
+    """Mock :mod:`rich`'s ``print`` while keeping the real package."""
+    import rich
+
+    with patch.object(rich, "print", MagicMock(side_effect=print)):
         yield
 
 

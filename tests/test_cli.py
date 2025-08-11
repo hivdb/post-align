@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
-import typer
-import sys
-from types import ModuleType
-from typing import Callable
 from io import StringIO
 from pathlib import Path
+from typing import Callable
 from unittest.mock import MagicMock, patch
 
-_rich_stub = ModuleType("rich")
-_rich_stub.print = print  # type: ignore[attr-defined]
-sys.modules.setdefault("rich", _rich_stub)
+import pytest
+import typer
 
 
 def _noop_result_callback(

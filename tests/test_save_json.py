@@ -157,3 +157,170 @@ def test_save_json_reports_unaligned_gene() -> None:
         messages: list[Message] = []
         output = "".join(processor([(refseq, seq)], messages))
         assert '"Error": "Sequence is not aligned"' in output
+
+
+def test_save_json_skips_partial_ref_codon() -> None:
+    """Codons shorter than three bases should yield an error report."""
+    from unittest.mock import patch
+    from postalign.processors.save_json import save_json
+    from postalign.models import Sequence, NAPosition, Message
+
+    refcd = NAPosition.init_from_bytes(b"AA")
+    seqcd = NAPosition.init_from_bytes(b"AA")
+    gene_codons = [("G", [refcd], [seqcd])]
+    with patch(
+        "postalign.processors.save_json.group_by_gene_codons",
+        return_value=gene_codons,
+    ), patch(
+        "postalign.processors.save_json.find_codon_trim_slice",
+        return_value=slice(0, 1),
+    ):
+        processor = save_json([("G", [(1, 4)])])
+        refseq = Sequence(
+            header=">ref",
+            description="",
+            seqtext=refcd,
+            seqid=1,
+            seqtype=NAPosition,
+            abs_seqstart=0,
+        )
+        seq = Sequence(
+            header=">seq",
+            description="",
+            seqtext=seqcd,
+            seqid=1,
+            seqtype=NAPosition,
+            abs_seqstart=0,
+        )
+        messages: list[Message] = []
+        output = "".join(processor([(refseq, seq)], messages))
+        assert '"Error": "Sequence is not aligned"' in output
+
+
+def test_save_json_records_deletion_frameshift() -> None:
+    """Deletions should be captured as frame shift events."""
+    from unittest.mock import patch
+    from postalign.processors.save_json import save_json
+    from postalign.models import Sequence, NAPosition, Message
+
+    refcd = NAPosition.init_from_bytes(b"AAA")
+    seqcd = NAPosition.init_from_bytes(b"AA")
+    gene_codons = [("G", [refcd], [seqcd])]
+    with patch(
+        "postalign.processors.save_json.group_by_gene_codons",
+        return_value=gene_codons,
+    ), patch(
+        "postalign.processors.save_json.find_codon_trim_slice",
+        return_value=slice(0, 1),
+    ), patch(
+        "postalign.processors.save_json.translate_codon",
+        return_value=b"M",
+    ):
+        processor = save_json([("G", [(1, 4)])])
+        refseq = Sequence(
+            header=">ref",
+            description="",
+            seqtext=refcd,
+            seqid=1,
+            seqtype=NAPosition,
+            abs_seqstart=0,
+        )
+        seq = Sequence(
+            header=">seq",
+            description="",
+            seqtext=seqcd,
+            seqid=1,
+            seqtype=NAPosition,
+            abs_seqstart=0,
+        )
+        messages: list[Message] = []
+        output = "".join(processor([(refseq, seq)], messages))
+        assert '"IsInsertion": false' in output
+        assert '"GapLength": 1' in output
+
+
+def test_save_json_ignores_trimmed_codons() -> None:
+    """Codons with trim flags should be skipped."""
+    from unittest.mock import patch
+    from postalign.processors.save_json import save_json
+    from postalign.models import Sequence, NAPosition, Message, PositionFlag
+
+    refcd = NAPosition.init_from_bytes(b"AAA")
+    seqcd = NAPosition.init_from_bytes(b"AAA")
+    seqcd[0].flag |= PositionFlag.TRIM_BY_SEQ
+    gene_codons = [("G", [refcd], [seqcd])]
+    with patch(
+        "postalign.processors.save_json.group_by_gene_codons",
+        return_value=gene_codons,
+    ), patch(
+        "postalign.processors.save_json.find_codon_trim_slice",
+        return_value=slice(0, 1),
+    ), patch(
+        "postalign.processors.save_json.translate_codon",
+        return_value=b"M",
+    ):
+        processor = save_json([("G", [(1, 4)])])
+        refseq = Sequence(
+            header=">ref",
+            description="",
+            seqtext=refcd,
+            seqid=1,
+            seqtype=NAPosition,
+            abs_seqstart=0,
+        )
+        seq = Sequence(
+            header=">seq",
+            description="",
+            seqtext=seqcd,
+            seqid=1,
+            seqtype=NAPosition,
+            abs_seqstart=0,
+        )
+        messages: list[Message] = []
+        output = "".join(processor([(refseq, seq)], messages))
+        assert '"Error": "Sequence is not aligned"' in output
+
+
+def test_save_json_inserts_commas_between_records() -> None:
+    """Multiple sequence reports should be comma separated."""
+    from postalign.processors.save_json import save_json
+    from postalign.models import Sequence, NAPosition, Message
+
+    refcd = NAPosition.init_from_bytes(b"AAA")
+    seqcd = NAPosition.init_from_bytes(b"AAA")
+    processor = save_json([])
+    ref1 = Sequence(
+        header="ref1",
+        description="",
+        seqtext=refcd,
+        seqid=1,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    seq1 = Sequence(
+        header="seq1",
+        description="",
+        seqtext=seqcd,
+        seqid=1,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    ref2 = Sequence(
+        header="ref2",
+        description="",
+        seqtext=refcd,
+        seqid=2,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    seq2 = Sequence(
+        header="seq2",
+        description="",
+        seqtext=seqcd,
+        seqid=2,
+        seqtype=NAPosition,
+        abs_seqstart=0,
+    )
+    messages: list[Message] = []
+    output = "".join(processor([(ref1, seq1), (ref2, seq2)], messages))
+    assert ',\n' in output

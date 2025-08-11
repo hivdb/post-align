@@ -49,3 +49,10 @@ def test_sequence_getitem_step_slice_error() -> None:
     seq = _make_sequence(b"AT")
     with pytest.raises(ValueError):
         _ = seq[::2]
+
+
+def test_sequence_add_non_sequence_type_error() -> None:
+    """Adding a non-sequence object should raise ``TypeError``."""
+    seq = _make_sequence(b"AT")
+    with pytest.raises(TypeError):
+        _ = seq + 1  # type: ignore[operator]
