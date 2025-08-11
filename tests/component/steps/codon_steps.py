@@ -10,9 +10,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable
 
-import inspect
 import typer
-from behave import given, then, when  # type: ignore[import-untyped]
+from behave import given, then, when  # type: ignore[import-not-found,import-untyped]
 
 if not hasattr(typer.Typer, "result_callback"):
     def result_callback(
@@ -22,14 +21,6 @@ if not hasattr(typer.Typer, "result_callback"):
             return func
         return decorator
     typer.Typer.result_callback = result_callback  # type: ignore[attr-defined]
-
-if "multiple" not in inspect.signature(typer.Option).parameters:
-    _orig_option = typer.Option
-
-    def Option(*args: Any, **kwargs: Any) -> Any:  # type: ignore[override]
-        kwargs.pop("multiple", None)
-        return _orig_option(*args, **kwargs)
-    typer.Option = Option  # type: ignore[assignment]
 
 from postalign.cli import AlignmentFormat, process_pipeline
 from postalign.processors.codon_alignment import codon_alignment

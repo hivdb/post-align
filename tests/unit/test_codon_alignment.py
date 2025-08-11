@@ -436,3 +436,16 @@ def test_gap_placement_score_callback_invalid_value() -> None:
     param.name = "gps"
     with pytest.raises(typer.BadParameter):
         gap_placement_score_callback(ctx, param, ("204foo",))
+
+
+def test_gap_placement_score_callback_str_value() -> None:
+    """String values should be accepted when Typer lacks ``multiple``."""
+
+    ctx = MagicMock()
+    param = MagicMock()
+    param.name = "gap_placement_score"
+    result = gap_placement_score_callback(
+        ctx, param, "204ins:-5,2041/12del:10"
+    )
+    assert result[REFGAP][(204, 0)] == -5
+    assert result[SEQGAP][(2041, 12)] == 10

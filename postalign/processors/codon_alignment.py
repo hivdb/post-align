@@ -1,5 +1,6 @@
 """Processor performing codon alignment."""
 
+import inspect
 import re
 import typer
 import cython  # type: ignore
@@ -614,27 +615,65 @@ def parse_gap_placement_score(value: str) -> dict[
 def gap_placement_score_callback(
     ctx: typer.Context,
     param: typer.CallbackParam,
-    value: tuple[str, ...],
+    value: tuple[str, ...] | list[str] | str | None,
 ) -> dict[int, dict[tuple[int, int], int]]:
     """Parse ``--gap-placement-score`` arguments.
 
-    :param ctx: Typer context.
+    The option may be provided multiple times depending on Typer's
+    capabilities. When ``multiple`` is supported the values arrive as a
+    tuple or list; otherwise Typer supplies a single comma-delimited string.
+
+    :param ctx: Typer context (unused).
     :param param: Callback parameter definition.
-    :param value: Tuple of score specifications.
+    :param value: Sequence or string of score specifications.
     :returns: Nested mapping of gap placement scores.
-    :raises typer.BadParameter: On invalid input value.
+    :raises typer.BadParameter: On invalid input value or metadata.
     """
     if not param.name:
         raise typer.BadParameter(
             'Internal error (gap_placement_score_callback:1)'
         )
+    if value is None or value == "" or value == ():  # no scores provided
+        return {}
+    if isinstance(value, (tuple, list)):
+        raw = ",".join(value)
+    else:
+        raw = value
     try:
         result: dict[
             int, dict[tuple[int, int], int]
-        ] = parse_gap_placement_score(','.join(value))
+        ] = parse_gap_placement_score(raw)
         return result
-    except ValueError as exp:
+    except ValueError as exp:  # pragma: no cover - defensive
         raise typer.BadParameter(str(exp))
+
+
+_GAP_PLACEMENT_HELP = (
+    'Bonus (positive number) or penalty (negative number) for gaps '
+    'appear at certain NA position (relative to the WHOLE ref seq) '
+    'in the ref seq (ins) or target seq (del). For example, '
+    '204ins:-5 is a -5 penalty designate to a gap with any size '
+    'gap in ref seq after NA position 204 (AA position 68). '
+    '2041/12del:10 is a +10 score for a 12 NAs size '
+    '(4 codons) gap in target seq at NA position 2041, '
+    'equivalent to deletion at 681, 682, 683 and 684 AA position. '
+    'Multiple scores can be delimited by commas, such as '
+    '204ins:-5,2041/12del:10.'
+)
+
+if 'multiple' in inspect.signature(typer.Option).parameters:
+    _GAP_PLACEMENT_OPTION = typer.Option(
+        (), '--gap-placement-score',
+        callback=gap_placement_score_callback,
+        multiple=True,
+        help=_GAP_PLACEMENT_HELP,
+    )  # type: ignore[call-overload]
+else:  # pragma: no cover - executed on Typer <0.15
+    _GAP_PLACEMENT_OPTION = typer.Option(
+        None, '--gap-placement-score',
+        callback=gap_placement_score_callback,
+        help=_GAP_PLACEMENT_HELP,
+    )
 
 
 @cli.command('codon-alignment')
@@ -666,24 +705,7 @@ def codon_alignment(
         #   Indel         NAPos NASize Score
         #     v              v     v     v
         dict[int, dict[tuple[int, int], int]],
-        typer.Option(
-            (), '--gap-placement-score',
-            callback=gap_placement_score_callback,
-            multiple=True,
-            help=(
-                'Bonus (positive number) or penalty (negative number) for gaps'
-                ' appear at certain NA position '
-                '(relative to the WHOLE ref seq) '
-                'in the ref seq (ins) or target seq (del). For example, '
-                '204ins:-5 is a -5 penalty designate to a gap with any size '
-                'gap in ref seq after NA position 204 (AA position 68). '
-                '2041/12del:10 is a +10 score for a 12 NAs size'
-                ' (4 codons) gap in target seq at NA position 2041,'
-                ' equivalent to deletion at 681, 682, 683 and 684 AA position.'
-                ' Multiple scores can be delimited by commas, such as '
-                '204ins:-5,2041/12del:10.'
-            ),
-        ),  # type: ignore[call-overload]
+        _GAP_PLACEMENT_OPTION,
     ] = {},
     ref_start: Annotated[int, typer.Argument()] = 1,
     ref_end: Annotated[int, typer.Argument()] = -1,
