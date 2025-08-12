@@ -609,32 +609,18 @@ def parse_gap_placement_score(value: str) -> dict[
     return scores
 
 
-@cython.ccall
-@cython.returns(dict)
-def gap_placement_score_callback(
-    ctx: typer.Context,
-    param: typer.CallbackParam,
-    value: tuple[str, ...],
-) -> dict[int, dict[tuple[int, int], int]]:
-    """Parse ``--gap-placement-score`` arguments.
-
-    :param ctx: Typer context.
-    :param param: Callback parameter definition.
-    :param value: Tuple of score specifications.
-    :returns: Nested mapping of gap placement scores.
-    :raises typer.BadParameter: On invalid input value.
-    """
-    if not param.name:
-        raise typer.BadParameter(
-            'Internal error (gap_placement_score_callback:1)'
-        )
-    try:
-        result: dict[
-            int, dict[tuple[int, int], int]
-        ] = parse_gap_placement_score(','.join(value))
-        return result
-    except ValueError as exp:
-        raise typer.BadParameter(str(exp))
+_GAP_PLACEMENT_HELP = (
+    'Bonus (positive number) or penalty (negative number) for gaps '
+    'appear at certain NA position (relative to the WHOLE ref seq) '
+    'in the ref seq (ins) or target seq (del). For example, '
+    '204ins:-5 is a -5 penalty designate to a gap with any size '
+    'gap in ref seq after NA position 204 (AA position 68). '
+    '2041/12del:10 is a +10 score for a 12 NAs size '
+    '(4 codons) gap in target seq at NA position 2041, '
+    'equivalent to deletion at 681, 682, 683 and 684 AA position. '
+    'Multiple scores can be delimited by commas, such as '
+    '204ins:-5,2041/12del:10.'
+)
 
 
 @cli.command('codon-alignment')
@@ -662,29 +648,12 @@ def codon_alignment(
         ),
     ] = 10,
     gap_placement_score: Annotated[
-        # For NASize, 0 means any size
-        #   Indel         NAPos NASize Score
-        #     v              v     v     v
-        dict[int, dict[tuple[int, int], int]],
+        list[str] | None,
         typer.Option(
-            (), '--gap-placement-score',
-            callback=gap_placement_score_callback,
-            multiple=True,
-            help=(
-                'Bonus (positive number) or penalty (negative number) for gaps'
-                ' appear at certain NA position '
-                '(relative to the WHOLE ref seq) '
-                'in the ref seq (ins) or target seq (del). For example, '
-                '204ins:-5 is a -5 penalty designate to a gap with any size '
-                'gap in ref seq after NA position 204 (AA position 68). '
-                '2041/12del:10 is a +10 score for a 12 NAs size'
-                ' (4 codons) gap in target seq at NA position 2041,'
-                ' equivalent to deletion at 681, 682, 683 and 684 AA position.'
-                ' Multiple scores can be delimited by commas, such as '
-                '204ins:-5,2041/12del:10.'
-            ),
-        ),  # type: ignore[call-overload]
-    ] = {},
+            None, '--gap-placement-score',
+            help=_GAP_PLACEMENT_HELP,
+        ),
+    ] = None,
     ref_start: Annotated[int, typer.Argument()] = 1,
     ref_end: Annotated[int, typer.Argument()] = -1,
     # XXX: see https://github.com/cython/cython/issues/2753
@@ -699,11 +668,17 @@ def codon_alignment(
     :param min_gap_distance: Minimal nucleotide gap distance of the output.
     :param window_size: Amino acid window size for finding optimal placement.
     :param gap_placement_score: Bonus or penalty scores for gaps at specific
-        positions.
+        positions, expressed as repeated ``--gap-placement-score`` options in
+        the form ``<pos>[/<size>](ins|del):<score>``.
     :param ref_start: Start position relative to reference sequence.
     :param ref_end: End position relative to reference sequence.
     :raises typer.BadParameter: If provided positions are invalid.
     """
+    if gap_placement_score:
+        gap_scores = parse_gap_placement_score(','.join(gap_placement_score))
+    else:
+        gap_scores = {REFGAP: {}, SEQGAP: {}}
+
     if ref_start < 1:
         raise typer.BadParameter(
             f'argument <REF_START>:{ref_start} must be not less than 1'
@@ -740,7 +715,7 @@ def codon_alignment(
                     seq,
                     min_gap_distance,
                     window_size,
-                    gap_placement_score,
+                    gap_scores,
                     ref_start, my_ref_end
                 )
 

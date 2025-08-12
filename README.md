@@ -33,7 +33,7 @@ The typical workflow runs minimap2 to generate alignments and writes the
 post‑processed result as JSON:
 
 ```bash
-pipenv run post-align -i reads.fasta -r ref.fasta -o result.json -f MINIMAP2 \
+pipenv run post-align -i reads.fas -r ref.fas -o result.json -f MINIMAP2 \
     save-json
 ```
 
@@ -44,7 +44,8 @@ Linting, type checking and tests:
 ```bash
 pipenv run flake8 .
 pipenv run mypy .
-pipenv run pytest --cov=postalign --cov-report=term-missing
+pipenv run pytest tests/unit --cov=postalign --cov-report=term-missing
+pipenv run behave tests/component  # downloads minimap2 2.17 automatically
 ```
 
 The project currently relies on a minimal `setup.py` for building Cython

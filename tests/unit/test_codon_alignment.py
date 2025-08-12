@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import typer
@@ -19,7 +19,6 @@ from postalign.processors.codon_alignment import (
     find_first_gap,
     move_gaps_to_center,
     parse_gap_placement_score,
-    gap_placement_score_callback,
     calc_match_score,
     separate_gaps_from_nas,
     paired_find_best_matches,
@@ -51,16 +50,6 @@ def test_parse_gap_placement_score_skips_empty() -> None:
     scores = parse_gap_placement_score("204ins:-5,,205del:3,")
     assert scores[REFGAP][(204, 0)] == -5
     assert scores[SEQGAP][(205, 0)] == 3
-
-
-def test_gap_placement_score_callback_missing_name() -> None:
-    """Missing parameter name should raise :class:`BadParameter`."""
-
-    ctx = MagicMock()
-    param = MagicMock()
-    param.name = None
-    with pytest.raises(typer.BadParameter):
-        gap_placement_score_callback(ctx, param, ())
 
 
 def test_codon_alignment_invalid_ref_start() -> None:
@@ -426,13 +415,3 @@ def test_codon_alignment_processor_dispatches() -> None:
     ca.assert_called_once()
     assert result[0] == (empty_ref, empty_seq)
     assert result[1] == (full_ref, full_seq)
-
-
-def test_gap_placement_score_callback_invalid_value() -> None:
-    """Invalid callback values should raise :class:`BadParameter`."""
-
-    ctx = MagicMock()
-    param = MagicMock()
-    param.name = "gps"
-    with pytest.raises(typer.BadParameter):
-        gap_placement_score_callback(ctx, param, ("204foo",))
