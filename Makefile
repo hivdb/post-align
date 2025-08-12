@@ -1,6 +1,5 @@
 requirements.txt: Pipfile.lock
-	@pipenv requirements --from-pipfile > requirements.txt
-@sed -i.bak -- '/^-e \.$/d' requirements.txt && rm -f requirements.txt.bak
+	@pipenv requirements --from-pipfile | grep -v '^-i' > requirements.txt
 
 test-unit:
 	@pytest tests/unit
