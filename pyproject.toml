@@ -1,3 +1,97 @@
 [build-system]
-requires = ["setuptools", "wheel", "cython"]
-build-backend = "setuptools.build_meta:__legacy__"
+requires = ["setuptools", "wheel", "cython>=3.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "post-align"
+version = "0.1.0"
+description = "A post alignment toolkit for refining pairwise/multiple alignment sequences."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.13"
+authors = [
+    {name = "Philip Tzou", email = "philiptz@stanford.edu"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "click>=8.1.1",
+    "more-itertools>=10.0.0",
+    "orjson>=3.10.0",
+    "pafpy>=0.2.0",
+    "cython>=3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy",
+    "ruff",
+    "types-setuptools",
+    "pytest",
+    "pytest-benchmark",
+    "hypothesis",
+    "matplotlib",
+]
+
+[project.urls]
+Homepage = "https://github.com/hivdb/post-align"
+
+[project.scripts]
+postalign = "postalign.entry:cli"
+
+[tool.setuptools.packages.find]
+include = ["postalign*"]
+
+[tool.setuptools.package-data]
+postalign = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_no_return = true
+warn_unreachable = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["postalign"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

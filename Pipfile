@@ -7,14 +7,16 @@ verify_ssl = true
 ipython = "*"
 pyinstaller = ">=4.2"
 mypy = "*"
+ruff = "*"
+pytest = "*"
+pytest-benchmark = "*"
+hypothesis = "*"
+matplotlib = "*"
+maturin = "*"
 
 [packages]
-click = ">=8.1.1"
-more-itertools = "*"
-pafpy = "*"
+post-align = {editable = true, path = "."}
 types-setuptools = "*"
-cython = "*"
-orjson = ">3.10.0"
 
 [requires]
 python_version = "3.13"
