@@ -8,6 +8,7 @@ use pyo3::types::{PyDict, PyList, PyTuple};
 use std::collections::HashMap;
 
 use align::{GapPlacementScore, NaPos};
+use rayon::prelude::*;
 
 /// Convert Python gap_placement_score dict to Rust struct.
 ///
@@ -33,13 +34,13 @@ fn parse_gap_placement_score(py_dict: &Bound<'_, PyDict>) -> PyResult<GapPlaceme
     Ok(GapPlacementScore { refgap, seqgap })
 }
 
-/// realign_gaps(ref_notations, ref_positions, ref_flags,
-///              seq_notations, seq_positions, seq_flags,
-///              min_gap_distance, window_size, gap_placement_score,
-///              is_seq_start, is_seq_end)
+/// Codon-aware gap realignment (baseline Rust port).
 ///
-/// Returns (ref_notations_out, ref_positions_out, ref_flags_out,
-///          seq_notations_out, seq_positions_out, seq_flags_out)
+/// Accepts flat arrays decomposed from `NAPosition` lists, runs
+/// `gather_gaps` → `group_by_codons` → `adjust_gap_placement`, and
+/// returns the realigned flat arrays as a 6-element Python tuple:
+/// `(ref_notations, ref_positions, ref_flags,
+///   seq_notations, seq_positions, seq_flags)`.
 #[pyfunction]
 fn realign_gaps(
     py: Python<'_>,
@@ -106,11 +107,14 @@ fn realign_gaps(
     ])?.into())
 }
 
-/// T5-optimized realign_gaps with precomputed IUPAC table, InlineAA,
-/// incremental scoring, and pre-allocated work buffers.
-/// Same signature as realign_gaps for drop-in replacement.
+/// Optimised codon-aware gap realignment.
+///
+/// Drop-in replacement for [`realign_gaps`] that uses the optimised
+/// scoring path: compile-time IUPAC lookup table, `InlineAA`
+/// stack-allocated codon translation, incremental per-codon score
+/// cache, and centre-expand search order.
 #[pyfunction]
-fn realign_gaps_t5(
+fn realign_gaps_optimized(
     py: Python<'_>,
     ref_notations: Vec<u8>,
     ref_positions: Vec<i32>,
@@ -146,7 +150,7 @@ fn realign_gaps_t5(
 
     let gps = parse_gap_placement_score(gap_placement_score)?;
 
-    let (out_ref, out_seq) = align::realign_gaps_t5(
+    let (out_ref, out_seq) = align::realign_gaps_optimized(
         refnas,
         seqnas,
         min_gap_distance,
@@ -324,7 +328,7 @@ struct AlignResult {
     out_seq: Vec<NaPos>,
 }
 
-/// Pure-Rust codon_align: boundary detection + T5 realign_gaps.
+/// Pure-Rust codon_align: boundary detection + optimised realign_gaps.
 /// Returns None if no alignment needed.
 fn codon_align_core(
     ref_notations: &[u8],
@@ -392,7 +396,7 @@ fn codon_align_core(
         &seq_flags[idx_start..idx_end],
     );
 
-    let (out_ref, out_seq) = align::realign_gaps_t5(
+    let (out_ref, out_seq) = align::realign_gaps_optimized(
         refnas, seqnas,
         min_gap_distance, window_size,
         gps, is_seq_start, is_seq_end,
@@ -422,7 +426,12 @@ fn align_result_to_py(py: Python<'_>, res: Option<AlignResult>) -> PyResult<PyOb
     }
 }
 
-/// Full codon_align in Rust (single pair). Returns None or 8-tuple.
+/// Full codon alignment in Rust for a single sequence pair.
+///
+/// Performs boundary detection (equivalent to Python's
+/// `_posrange2indexrange`) followed by optimised gap realignment.
+/// Returns `None` if no alignment is needed, otherwise an 8-tuple:
+/// `(idx_start, idx_end, ref_n, ref_p, ref_f, seq_n, seq_p, seq_f)`.
 #[pyfunction]
 fn codon_align_full(
     py: Python<'_>,
@@ -449,10 +458,8 @@ fn codon_align_full(
 }
 
 // ---------------------------------------------------------------------------
-// Phase D: Batch API with rayon parallelism
+// Batch API with rayon parallelism
 // ---------------------------------------------------------------------------
-
-use rayon::prelude::*;
 
 /// Input data for one sequence pair (owned, Send+Sync safe).
 struct BatchInput {
@@ -466,13 +473,15 @@ struct BatchInput {
     ref_end: i32,
 }
 
-/// Batch codon_align: process N sequence pairs in parallel using rayon.
+/// Batch codon alignment with rayon parallelism.
 ///
-/// Args:
-///   items: list of (ref_n, ref_p, ref_f, seq_n, seq_p, seq_f, ref_start, ref_end)
-///   min_gap_distance, window_size, gap_placement_score: shared params
+/// Processes *N* sequence pairs in parallel, releasing the GIL
+/// during the compute phase.  Each input item is an 8-tuple of
+/// flat arrays `(ref_n, ref_p, ref_f, seq_n, seq_p, seq_f,
+/// ref_start, ref_end)`.  Shared parameters (`min_gap_distance`,
+/// `window_size`, `gap_placement_score`) are parsed once.
 ///
-/// Returns: list of results (None or 8-tuple) for each input pair.
+/// Returns a Python list of results, each `None` or an 8-tuple.
 #[pyfunction]
 fn codon_align_batch(
     py: Python<'_>,
@@ -529,7 +538,7 @@ fn codon_align_batch(
 #[pymodule]
 fn postalign_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(realign_gaps, m)?)?;
-    m.add_function(wrap_pyfunction!(realign_gaps_t5, m)?)?;
+    m.add_function(wrap_pyfunction!(realign_gaps_optimized, m)?)?;
     m.add_function(wrap_pyfunction!(codon_align_full, m)?)?;
     m.add_function(wrap_pyfunction!(codon_align_batch, m)?)?;
     Ok(())

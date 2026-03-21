@@ -143,3 +143,5 @@ dmypy.json
 *.swo
 
 *.c
+
+benchmarks

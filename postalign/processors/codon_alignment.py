@@ -1,8 +1,35 @@
+"""Codon alignment with optimized gap placement.
+
+Provides a pure-Python/Cython codon alignment implementation and a CLI
+command that supports switching between the Python backend and the
+Rust-accelerated backend (``codon_alignment_rust``).
+
+Algorithm overview
+------------------
+1. **Gap gathering** — nearby gaps within ``min_gap_distance`` are merged
+   into single windows and moved to the centre of each window.
+2. **Codon grouping** — the reference and sequence are split into codon
+   triples, and consecutive gap-containing codons are grouped.
+3. **Gap placement optimisation** — for each gap group the algorithm
+   searches every codon-aligned position (step 3) using a centre-expand
+   order starting from the original gap location.  At each candidate
+   position a combined IUPAC + BLOSUM62 score is computed.  Precomputed
+   other-side amino acids avoid redundant translation work.
+4. **Finalisation** — gaps inside sequence codons are moved to the codon
+   end so downstream consumers always see gaps trailing the bases.
+
+Optimisations over the original implementation (D1–D4):
+- **D1** precomputed other-side amino acids,
+- **D2** fast-path when no gaps exist,
+- **D4** centre-expand search order with leftmost-index tie-breaking.
+"""
 import re
-import click
 import cython  # type: ignore
-from typing import Iterable, Tuple, List, Set, Optional, Dict, Any
+from collections.abc import Iterable
 from itertools import chain, groupby
+from typing import Any
+
+import click
 
 from ..cli import cli
 from ..utils import group_by_codons, find_codon_trim_slice
@@ -25,33 +52,48 @@ GAP_PLACEMENT_SCORE_PATTERN: re.Pattern = re.compile(
     r'^(\d+)(?:/(\d+))?(ins|del):(-?\d+)$'
 )
 
-CodonPair = Tuple[
+CodonPair = tuple[
     int,  # refpos0
-    Tuple[
-        List[NAPosition],  # refcodon
-        List[NAPosition]   # poscodon
+    tuple[
+        list[NAPosition],  # refcodon
+        list[NAPosition]   # poscodon
     ]
 ]
 
+
+# -----------------------------------------------------------------------
+# Helper functions
+# -----------------------------------------------------------------------
 
 @cython.cfunc
 @cython.inline
 @cython.returns(tuple)
 def extend_codons_until_gap(
-    ref_codons: List[List[NAPosition]],
-    seq_codons: List[List[NAPosition]],
+    ref_codons: list[list[NAPosition]],
+    seq_codons: list[list[NAPosition]],
     direction: int
-) -> Tuple[
-    List[List[NAPosition]],
-    List[List[NAPosition]],
+) -> tuple[
+    list[list[NAPosition]],
+    list[list[NAPosition]],
     int
 ]:
+    """Extend codon lists in *direction* until a gap is encountered.
+
+    Args:
+        ref_codons: Reference codon lists to extend from.
+        seq_codons: Sequence codon lists to extend from.
+        direction: ``LEFT`` or ``RIGHT``.
+
+    Returns:
+        A 3-tuple ``(ref_codons, seq_codons, count)`` where *count* is
+        the number of gap-free codons that were included.
+    """
     if direction == LEFT:
         ref_codons.reverse()
         seq_codons.reverse()
     idx: int
-    refcd: List[NAPosition]
-    seqcd: List[NAPosition]
+    refcd: list[NAPosition]
+    seqcd: list[NAPosition]
     endidx: int = len(ref_codons)
     for idx, (refcd, seqcd) in enumerate(zip(ref_codons, seq_codons)):
         broken: bool = False
@@ -74,28 +116,20 @@ def extend_codons_until_gap(
 @cython.inline
 @cython.returns(list)
 def find_windows_with_gap(
-    refnas: List[NAPosition],
-    seqnas: List[NAPosition],
+    refnas: list[NAPosition],
+    seqnas: list[NAPosition],
     min_gap_distance: int
-) -> List[slice]:
-    """List all windows with gap:
+) -> list[slice]:
+    """Return slices covering contiguous gap regions.
 
-    Examples:
-
-    ref: AAAA-----------
-    seq: -----------BBBB
-
-    ref: -----------
-    seq: -----------
-
-    ref: ---AAAA----
-    seq: ---BBBB----
+    Gaps separated by more than *min_gap_distance* non-gap positions
+    are placed in separate windows.
     """
     refna: NAPosition
     seqna: NAPosition
     first_gap_idx: int = -1
     last_gap_idx: int = -1
-    windows: List[slice] = []
+    windows: list[slice] = []
     for idx, (refna, seqna) in enumerate(zip(refnas, seqnas)):
         if not refna.is_gap and not seqna.is_gap:
             continue
@@ -113,7 +147,8 @@ def find_windows_with_gap(
 
 @cython.cfunc
 @cython.inline
-def find_first_gap(nas: List[NAPosition]) -> int:
+def find_first_gap(nas: list[NAPosition]) -> int:
+    """Return the index of the first gap in *nas*, or ``-1``."""
     idx: int
     na: NAPosition
     for idx, na in enumerate(nas):
@@ -126,9 +161,10 @@ def find_first_gap(nas: List[NAPosition]) -> int:
 @cython.inline
 @cython.returns(list)
 def move_gap_to_codon_end(
-    codons: List[List[NAPosition]]
-) -> List[List[NAPosition]]:
-    new_codons: List[List[NAPosition]] = []
+    codons: list[list[NAPosition]]
+) -> list[list[NAPosition]]:
+    """Move gaps to the end of each codon triple."""
+    new_codons: list[list[NAPosition]] = []
     for codon in codons:
         new_codons.append(
             [na for na in codon if not na.is_gap] +
@@ -139,34 +175,14 @@ def move_gap_to_codon_end(
 
 @cython.cfunc
 @cython.inline
-def calc_match_score(
-    mynas: List[NAPosition],
-    othernas: List[NAPosition],
-    base_score: float
-) -> float:
-    myna: NAPosition
-    otherna: NAPosition
-    myaa: bytes
-    otheraa: bytes
-    myaas: List[bytes] = translate_codons(mynas)
-    otheraas: List[bytes] = translate_codons(othernas)
-    score: float = base_score
-    for myna, otherna in zip(mynas, othernas):
-        score += iupac_score(myna.notation, otherna.notation)
-    for myaa, otheraa in zip(myaas, otheraas):
-        score += blosum62_score(myaa, otheraa)
-    return score
-
-
-@cython.cfunc
-@cython.inline
 @cython.returns(tuple)
 def separate_gaps_from_nas(
-    nas: List[NAPosition]
-) -> Tuple[List[NAPosition], List[NAPosition]]:
+    nas: list[NAPosition]
+) -> tuple[list[NAPosition], list[NAPosition]]:
+    """Partition *nas* into ``(non_gaps, gaps)``."""
     na: NAPosition
-    nongaps: List[NAPosition] = []
-    gaps: List[NAPosition] = []
+    nongaps: list[NAPosition] = []
+    gaps: list[NAPosition] = []
     for na in nas:
         if na.is_gap:
             gaps.append(na)
@@ -178,27 +194,190 @@ def separate_gaps_from_nas(
 @cython.cfunc
 @cython.inline
 @cython.returns(list)
+def remove_n_gaps(nas: list[NAPosition], n_gaps: int) -> list[NAPosition]:
+    """Remove the first *n_gaps* gap positions from *nas*."""
+    na: NAPosition
+    result: list[NAPosition] = []
+    for na in nas:
+        if na.is_gap and n_gaps > 0:
+            n_gaps -= 1
+        else:
+            result.append(na)
+    return result
+
+
+@cython.cfunc
+@cython.inline
+@cython.returns(tuple)
+def remove_redundant_gaps(
+    refnas: list[NAPosition],
+    seqnas: list[NAPosition]
+) -> tuple[list[NAPosition], list[NAPosition]]:
+    """Remove gaps that appear in both ref and seq simultaneously.
+
+    When both sequences carry gaps in the same window the minimum
+    overlap is stripped from each so that gaps exist on only one side.
+    """
+    n_gaps: int = min(
+        NAPosition.count_gaps(refnas),
+        NAPosition.count_gaps(seqnas)
+    )
+    if n_gaps:
+        refnas = remove_n_gaps(refnas, n_gaps)
+        seqnas = remove_n_gaps(seqnas, n_gaps)
+    return refnas, seqnas
+
+
+# -----------------------------------------------------------------------
+# D1 — Optimised scoring: precompute other_aas, avoid redundant work
+# -----------------------------------------------------------------------
+
+@cython.cfunc
+@cython.inline
+def calc_match_score_precomputed(
+    mynas: list[NAPosition],
+    othernas: list[NAPosition],
+    other_aas: list[bytes],
+    base_score: float
+) -> float:
+    """Compute combined IUPAC + BLOSUM62 match score.
+
+    Re-uses *other_aas* (precomputed amino-acid translations of the
+    other side) to avoid redundant ``translate_codons`` calls.
+
+    Args:
+        mynas: Candidate gap-inserted positions.
+        othernas: The other (fixed) side positions.
+        other_aas: Precomputed amino-acid list for *othernas*.
+        base_score: Starting score (typically ``-gaplen``).
+
+    Returns:
+        The total alignment score for this candidate placement.
+    """
+    myna: NAPosition
+    otherna: NAPosition
+    myaa: bytes
+    otheraa: bytes
+    myaas: list[bytes] = translate_codons(mynas)
+    score: float = base_score
+    for myna, otherna in zip(mynas, othernas):
+        score += iupac_score(myna.notation, otherna.notation)
+    for myaa, otheraa in zip(myaas, other_aas):
+        score += blosum62_score(myaa, otheraa)
+    return score
+
+
+# -----------------------------------------------------------------------
+# D4 — Centre-expand search order
+# -----------------------------------------------------------------------
+
+@cython.cfunc
+@cython.inline
+@cython.returns(list)
+def center_expand_positions(
+    center: int,
+    scanstart: int,
+    mynas_len: int,
+    step: int
+) -> list[int]:
+    """Generate search positions in centre-expand order.
+
+    Starting from *center* (snapped to the nearest *step*-aligned
+    position), positions are emitted outward in alternating
+    lower/higher order until all valid indices are covered.
+
+    Args:
+        center: Original gap index to expand from.
+        scanstart: Minimum valid index (3 for REFGAP, 0 for SEQGAP).
+        mynas_len: Length of the non-gap portion of the sequence.
+        step: Codon step size (always 3).
+
+    Returns:
+        Ordered list of candidate gap-insertion indices.
+    """
+    positions: list[int] = []
+    # Snap center to nearest valid step-aligned position
+    center = max(scanstart, ((center + step // 2) // step) * step)
+    if scanstart <= center <= mynas_len:
+        positions.append(center)
+
+    offset: int = step
+    while True:
+        added: bool = False
+        lo: int = center - offset
+        hi: int = center + offset
+        if lo >= scanstart:
+            positions.append(lo)
+            added = True
+        if hi <= mynas_len and hi != lo:
+            positions.append(hi)
+            added = True
+        if not added:
+            break
+        offset += step
+
+    return positions
+
+
+# -----------------------------------------------------------------------
+# D1 + D4 — Optimised find_best_matches
+# -----------------------------------------------------------------------
+
+@cython.cfunc
+@cython.inline
+@cython.returns(list)
 def find_best_matches(
-    mynas: List[NAPosition],
-    othernas: List[NAPosition],
-    bp1_indices: Set[int],
+    mynas: list[NAPosition],
+    othernas: list[NAPosition],
+    bp1_indices: set[int],
     gap_type: int,
-    gap_placement_score: Dict[Tuple[int, int], int],
+    gap_placement_score: dict[tuple[int, int], int],
     is_start: bool,
     is_end: bool
-) -> List[NAPosition]:
+) -> list[NAPosition]:
+    """Find the optimal gap insertion position.
+
+    Slides the gap block across every codon-aligned position using
+    centre-expand order (D4) and scores each candidate with
+    precomputed other-side amino acids (D1).
+
+    Tie-breaking priority (highest first):
+    1. Codon-boundary insertion (``bp1_indices``) — +1 bonus.
+    2. Original gap position preserved.
+    3. Leftmost index (``-idx``).
+
+    Args:
+        mynas: The side that contains the gap.
+        othernas: The other (fixed) side.
+        bp1_indices: Indices at reading-frame codon boundaries.
+        gap_type: ``REFGAP`` or ``SEQGAP``.
+        gap_placement_score: ``{(napos, gaplen): score}`` bonus map.
+        is_start: Whether this window touches the sequence start.
+        is_end: Whether this window touches the sequence end.
+
+    Returns:
+        The re-ordered *mynas* with the gap at the best position.
+    """
     idx: int
-    score: Tuple[float, int]
-    mygap: List[NAPosition]
-    test_mynas: List[NAPosition]
+    score: tuple[float, int, int]
+    mygap: list[NAPosition]
+    test_mynas: list[NAPosition]
     orig_gapidx: int = find_first_gap(mynas)
     mynas, mygap = separate_gaps_from_nas(mynas)
     gaplen: int = len(mygap)
-    max_score: Optional[Tuple[float, int]] = None
-    best_mynas: Optional[List[NAPosition]] = None
+    max_score: tuple[float, int, int] | None = None
+    best_mynas: list[NAPosition] | None = None
     scanstart: int = 3 if gap_type == REFGAP else 0
     mynas_len: int = len(mynas)
-    for idx in range(scanstart, mynas_len + 1, 3):
+
+    # D1: Precompute other-side amino acids (they never change)
+    other_aas: list[bytes] = translate_codons(othernas)
+
+    # D4: Search from original gap position outward
+    positions: list[int] = center_expand_positions(
+        orig_gapidx, scanstart, mynas_len, 3)
+
+    for idx in positions:
         napos: int
         test_mynas = mynas[::]
         test_mynas[idx:idx] = mygap
@@ -207,7 +386,9 @@ def find_best_matches(
             base_score = .0
         elif is_end and idx + 3 > mynas_len:
             base_score = .0
-        score_val: float = calc_match_score(test_mynas, othernas, base_score)
+        # D1: Use precomputed other_aas
+        score_val: float = calc_match_score_precomputed(
+            test_mynas, othernas, other_aas, base_score)
         if gap_type == REFGAP:
             napos = mynas[idx - 1].pos
         else:  # gap_type == SEQGAP
@@ -219,12 +400,12 @@ def find_best_matches(
 
         if idx in bp1_indices:
             # reward gaps inserted between codons
-            score = (score_val + 1, 2)
+            score = (score_val + 1, 2, -idx)
         elif idx == orig_gapidx:
             # respect the original gapidx if it's already one of the best
-            score = (score_val, 1)
+            score = (score_val, 1, -idx)
         else:
-            score = (score_val, 0)
+            score = (score_val, 0, -idx)
         if max_score is None or score > max_score:
             max_score = score
             best_mynas = test_mynas
@@ -238,16 +419,33 @@ def find_best_matches(
 @cython.inline
 @cython.returns(tuple)
 def paired_find_best_matches(
-    refnas: List[NAPosition],
-    seqnas: List[NAPosition],
+    refnas: list[NAPosition],
+    seqnas: list[NAPosition],
     gap_type: int,
-    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
+    gap_placement_score: dict[int, dict[tuple[int, int], int]],
     is_seq_start: bool,
     is_seq_end: bool
-) -> Tuple[List[NAPosition], List[NAPosition]]:
+) -> tuple[list[NAPosition], list[NAPosition]]:
+    """Dispatch gap optimisation to the correct side.
+
+    Computes reading-frame boundary indices (``bp1_indices``) from the
+    reference, then calls ``find_best_matches`` on whichever side
+    carries the gap.
+
+    Args:
+        refnas: Reference positions (may contain gaps if REFGAP).
+        seqnas: Sequence positions (may contain gaps if SEQGAP).
+        gap_type: ``REFGAP`` or ``SEQGAP``.
+        gap_placement_score: Full ``{gap_type: {(pos, len): score}}`` map.
+        is_seq_start: True if window touches sequence start.
+        is_seq_end: True if window touches sequence end.
+
+    Returns:
+        Updated ``(refnas, seqnas)`` with the gap repositioned.
+    """
     idx: int
     na: NAPosition
-    bp1_indices: Set[int] = set()
+    bp1_indices: set[int] = set()
     bp: int = 0
     for idx, na in enumerate(refnas):
         if na.is_gap:
@@ -275,12 +473,13 @@ def paired_find_best_matches(
 
 
 @cython.ccall
-def codon_pairs_group_key(cdpair: Tuple[
+def codon_pairs_group_key(cdpair: tuple[
     int,
-    Tuple[List[NAPosition], List[NAPosition]]
+    tuple[list[NAPosition], list[NAPosition]]
 ]) -> int:
-    refcd: List[NAPosition]
-    seqcd: List[NAPosition]
+    """Return the gap type for a ``(index, (refcodon, seqcodon))`` pair."""
+    refcd: list[NAPosition]
+    seqcd: list[NAPosition]
     _, (refcd, seqcd) = cdpair
     if NAPosition.any_has_gap(refcd):
         return REFGAP
@@ -292,9 +491,10 @@ def codon_pairs_group_key(cdpair: Tuple[
 @cython.cfunc
 @cython.inline
 @cython.returns(list)
-def move_gaps_to_center(nas: List[NAPosition]) -> List[NAPosition]:
-    new_nas: List[NAPosition]
-    gaps: List[NAPosition]
+def move_gaps_to_center(nas: list[NAPosition]) -> list[NAPosition]:
+    """Move all gaps in *nas* to the centre of the non-gap bases."""
+    new_nas: list[NAPosition]
+    gaps: list[NAPosition]
     new_nas, gaps = separate_gaps_from_nas(nas)
     center_idx: int = len(new_nas) // 2
     new_nas[center_idx:center_idx] = gaps
@@ -305,17 +505,21 @@ def move_gaps_to_center(nas: List[NAPosition]) -> List[NAPosition]:
 @cython.inline
 @cython.returns(tuple)
 def gather_gaps(
-    refnas: List[NAPosition],
-    seqnas: List[NAPosition],
+    refnas: list[NAPosition],
+    seqnas: list[NAPosition],
     min_gap_distance: int
-) -> Tuple[
-    List[NAPosition],
-    List[NAPosition]
+) -> tuple[
+    list[NAPosition],
+    list[NAPosition]
 ]:
-    """Gather gaps together according to window"""
+    """Gather nearby gaps into single windows.
+
+    For each window, redundant gaps are removed and the remaining
+    gaps are moved to the centre of the non-gap content.
+    """
     slicekey: slice
-    win_refnas: List[NAPosition]
-    win_seqnas: List[NAPosition]
+    win_refnas: list[NAPosition]
+    win_seqnas: list[NAPosition]
     # reverse windows so the assignment won't change index
     for slicekey in reversed(find_windows_with_gap(
         refnas, seqnas, min_gap_distance
@@ -333,32 +537,42 @@ def gather_gaps(
     return refnas, seqnas
 
 
+# -----------------------------------------------------------------------
+# adjust_gap_placement
+# -----------------------------------------------------------------------
+
 @cython.cfunc
 @cython.inline
 @cython.returns(tuple)
 def adjust_gap_placement(
-    refcodons: List[List[NAPosition]],
-    seqcodons: List[List[NAPosition]],
+    refcodons: list[list[NAPosition]],
+    seqcodons: list[list[NAPosition]],
     window_size: int,
-    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
+    gap_placement_score: dict[int, dict[tuple[int, int], int]],
     is_seq_start: bool,
     is_seq_end: bool
-) -> Tuple[List[List[NAPosition]], List[List[NAPosition]]]:
-    """Adjust continuous refgap/seqgap placement"""
+) -> tuple[list[list[NAPosition]], list[list[NAPosition]]]:
+    """Adjust gap placement for each contiguous gap group.
+
+    Groups consecutive gap codons, extends windows left/right by up to
+    *window_size* gap-free codons, then calls
+    ``paired_find_best_matches`` to optimise gap position within each
+    extended window.
+    """
     start: int
     end: int
     offset: int
     gap_type: int
     codonpairs: Iterable[CodonPair]
-    refcd: List[NAPosition]
-    seqcd: List[NAPosition]
-    ext_refcds: List[List[NAPosition]]
-    ext_seqcds: List[List[NAPosition]]
+    refcd: list[NAPosition]
+    seqcd: list[NAPosition]
+    ext_refcds: list[list[NAPosition]]
+    ext_seqcds: list[list[NAPosition]]
 
     trim_slice: slice = find_codon_trim_slice(seqcodons)
 
     gap_groups: Iterable[
-        Tuple[
+        tuple[
             int,  # group key: NOGAP, REFGAP or SEQGAP
             Iterable[CodonPair]
         ]
@@ -373,8 +587,8 @@ def adjust_gap_placement(
 
         codonpairs = list(codonpairs)
         start, end = codonpairs[0][0], codonpairs[-1][0] + 1
-        refcds: List[List[NAPosition]] = []
-        seqcds: List[List[NAPosition]] = []
+        refcds: list[list[NAPosition]] = []
+        seqcds: list[list[NAPosition]] = []
         for _, (refcd, seqcd) in codonpairs:
             refcds.append(refcd)
             seqcds.append(seqcd)
@@ -402,6 +616,7 @@ def adjust_gap_placement(
 
         win_refnas = list(chain(*refcds))
         win_seqnas = list(chain(*seqcds))
+
         win_refnas, win_seqnas = paired_find_best_matches(
             win_refnas,
             win_seqnas,
@@ -418,20 +633,41 @@ def adjust_gap_placement(
     return refcodons, seqcodons
 
 
+# -----------------------------------------------------------------------
+# realign_gaps
+# -----------------------------------------------------------------------
+
 @cython.cfunc
 @cython.inline
 @cython.returns(tuple)
 def realign_gaps(
-    refnas: List[NAPosition],
-    seqnas: List[NAPosition],
+    refnas: list[NAPosition],
+    seqnas: list[NAPosition],
     min_gap_distance: int,
     window_size: int,
-    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
+    gap_placement_score: dict[int, dict[tuple[int, int], int]],
     is_seq_start: bool,
     is_seq_end: bool
-) -> Tuple[List[NAPosition], List[NAPosition]]:
-    refcodons: List[List[NAPosition]]
-    seqcodons: List[List[NAPosition]]
+) -> tuple[list[NAPosition], list[NAPosition]]:
+    """Gather gaps and optimise their placement.
+
+    This is the main internal entry point that chains gap gathering,
+    codon grouping, gap placement adjustment, and codon-end gap movement.
+
+    Args:
+        refnas: Reference NA positions for the active window.
+        seqnas: Sequence NA positions for the active window.
+        min_gap_distance: Maximum NA distance for gap merging.
+        window_size: Number of flanking codons to consider.
+        gap_placement_score: Bonus/penalty map.
+        is_seq_start: True if the window starts at sequence start.
+        is_seq_end: True if the window ends at sequence end.
+
+    Returns:
+        Updated ``(refnas, seqnas)`` with gaps optimally placed.
+    """
+    refcodons: list[list[NAPosition]]
+    seqcodons: list[list[NAPosition]]
 
     refnas, seqnas = gather_gaps(refnas, seqnas, min_gap_distance)
 
@@ -451,50 +687,9 @@ def realign_gaps(
     return list(chain(*refcodons)), list(chain(*seqcodons))
 
 
-@cython.cfunc
-@cython.inline
-@cython.returns(list)
-def remove_n_gaps(nas: List[NAPosition], n_gaps: int) -> List[NAPosition]:
-    na: NAPosition
-    result: List[NAPosition] = []
-    for na in nas:
-        if na.is_gap and n_gaps > 0:
-            n_gaps -= 1
-        else:
-            result.append(na)
-    return result
-
-
-@cython.cfunc
-@cython.inline
-@cython.returns(tuple)
-def remove_redundant_gaps(
-    refnas: List[NAPosition],
-    seqnas: List[NAPosition]
-) -> Tuple[List[NAPosition], List[NAPosition]]:
-    """Remove redundant gaps
-
-    Gap should only exist in either sequence but not both
-
-    Example of matched gaps:
-
-                vv
-    TCAGCTGATGCA---CAA
-    TCAGGC-TGATGCAC-AA
-          ^        ^
-
-    Two of above gaps are redundant and should be removed
-    before the alignment get further processed
-    """
-    n_gaps: int = min(
-        NAPosition.count_gaps(refnas),
-        NAPosition.count_gaps(seqnas)
-    )
-    if n_gaps:
-        refnas = remove_n_gaps(refnas, n_gaps)
-        seqnas = remove_n_gaps(seqnas, n_gaps)
-    return refnas, seqnas
-
+# -----------------------------------------------------------------------
+# Main entry point — pure-Python codon_align
+# -----------------------------------------------------------------------
 
 @cython.ccall
 @cython.returns(tuple)
@@ -503,12 +698,30 @@ def codon_align(
     seq: Sequence,
     min_gap_distance: int,
     window_size: int,
-    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
+    gap_placement_score: dict[int, dict[tuple[int, int], int]],
     ref_start: int,
     ref_end: int
 ) -> RefSeqPair:
-    refnas: List[NAPosition] = refseq.seqtext
-    seqnas: List[NAPosition] = seq.seqtext
+    """Perform codon-aware gap realignment on a reference/sequence pair.
+
+    Determines the active reading-frame window from *ref_start* /
+    *ref_end*, checks for gaps, and delegates to ``realign_gaps`` for
+    the actual optimisation.
+
+    Args:
+        refseq: Reference ``Sequence`` object.
+        seq: Target ``Sequence`` object.
+        min_gap_distance: Merge gaps within this NA distance.
+        window_size: Flanking codons used during gap search.
+        gap_placement_score: ``{gap_type: {(pos, size): score}}`` map.
+        ref_start: First reference position (1-based, inclusive).
+        ref_end: Last reference position (1-based, inclusive).
+
+    Returns:
+        Updated ``(refseq, seq)`` pair with codon-aligned gaps.
+    """
+    refnas: list[NAPosition] = refseq.seqtext
+    seqnas: list[NAPosition] = seq.seqtext
 
     seq_idx_start: int = 0
     seq_idx_end: int = len(seqnas)
@@ -550,6 +763,8 @@ def codon_align(
     # step 1: apply reading frame
     refnas = refnas[idx_start:idx_end]
     seqnas = seqnas[idx_start:idx_end]
+
+    # D2: Fast path — no gaps at all
     if not NAPosition.any_has_gap(refnas) and \
             not NAPosition.any_has_gap(seqnas):
         return refseq, seq
@@ -578,24 +793,40 @@ def codon_align(
     return refseq, seq
 
 
+# -----------------------------------------------------------------------
+# CLI helpers
+# -----------------------------------------------------------------------
+
 @cython.ccall
 @cython.returns(dict)
-def parse_gap_placement_score(value: str) -> Dict[
-    int, Dict[Tuple[int, int], int]
+def parse_gap_placement_score(value: str) -> dict[
+    int, dict[tuple[int, int], int]
 ]:
-    pos: str
+    """Parse a comma-separated gap-placement-score string.
+
+    Each token has the form ``<pos>[/<size>](ins|del):<score>``.
+
+    Args:
+        value: Raw score string, e.g. ``"204ins:-5,2041/12del:10"``.
+
+    Returns:
+        ``{REFGAP: {(pos, size): score}, SEQGAP: {…}}``.
+
+    Raises:
+        ValueError: If any token does not match the expected pattern.
+    """
     pos_size: str
     gap_type: str
     gap_score: str
     score_str: str
-    scores: Dict[int, Dict[Tuple[int, int], int]] = {
+    scores: dict[int, dict[tuple[int, int], int]] = {
         REFGAP: {},
         SEQGAP: {}
     }
     for score_str in value.split(','):
         if not score_str:
             continue
-        match: Optional[re.Match] = \
+        match: re.Match | None = \
             GAP_PLACEMENT_SCORE_PATTERN.match(score_str)
         if not match:
             raise ValueError(
@@ -615,8 +846,9 @@ def parse_gap_placement_score(value: str) -> Dict[
 def gap_placement_score_callback(
     ctx: click.Context,
     param: click.Option,
-    value: Tuple[str]
-) -> Dict[int, Dict[Tuple[int, int], int]]:
+    value: tuple[str]
+) -> dict[int, dict[tuple[int, int], int]]:
+    """Click callback that parses ``--gap-placement-score`` values."""
     if not param.name:
         raise click.BadParameter(
             'Internal error (gap_placement_score_callback:1)',
@@ -624,8 +856,8 @@ def gap_placement_score_callback(
             param
         )
     try:
-        result: Dict[
-            int, Dict[Tuple[int, int], int]
+        result: dict[
+            int, dict[tuple[int, int], int]
         ] = parse_gap_placement_score(','.join(value))
         return result
     except ValueError as exp:
@@ -636,14 +868,18 @@ def gap_placement_score_callback(
         )
 
 
+# -----------------------------------------------------------------------
+# CLI command
+# -----------------------------------------------------------------------
+
 @cli.command('codon-alignment')
 @click.option(
     '--min-gap-distance',
     type=int,
     default=30,
     help=(
-        'Minimal NA gap distance of the output, gaps within the'
-        'minnimal distance will be gathered into a single gap'
+        'Minimal NA gap distance of the output, gaps within the '
+        'minimal distance will be gathered into a single gap'
     ))
 @click.option(
     '--window-size',
@@ -672,6 +908,15 @@ def gap_placement_score_callback(
         'Multiple scores can be delimited by commas, such as '
         '204ins:-5,2041/12del:10.'
     ))
+@click.option(
+    '--backend',
+    type=click.Choice(['python', 'rust'], case_sensitive=False),
+    default='rust',
+    help=(
+        'Execution backend: "python" uses the pure-Python/Cython '
+        'implementation; "rust" (default) uses the Rust-accelerated '
+        'implementation via postalign_rs.'
+    ))
 @click.argument(
     'ref_start', type=int, default=1
 )
@@ -684,17 +929,19 @@ def codon_alignment(
     # For NASize, 0 means any size
     #                        Indel         NAPos NASize Score
     #                          v              v     v     v
-    gap_placement_score: Dict[int, Dict[Tuple[int, int], int]],
+    gap_placement_score: dict[int, dict[tuple[int, int], int]],
+    backend: str,
     ref_start: int,
     ref_end: int
     # XXX: see https://github.com/cython/cython/issues/2753
     # this has been fixed by cython 3.0
     # ) -> Processor[Iterable[RefSeqPair]]:
 ) -> Processor:
-    """Codon alignment
+    """Perform codon alignment.
 
-    A blackbox re-implementation of the "codon-align" tool
-    created by LANL HIV Sequence Database.
+    A re-implementation of the "codon-align" tool created by LANL HIV
+    Sequence Database.  Supports a pure-Python/Cython backend and a
+    Rust-accelerated backend selectable via ``--backend``.
 
     The arguments <REF_START> and <REF_END> provide the position range
     (relative to ref. sequence) where the codon alignment should be applied.
@@ -709,6 +956,12 @@ def codon_alignment(
             .format(ref_start, ref_end)
         )
 
+    # Select backend implementation
+    if backend == 'rust':
+        from .codon_alignment_rust import codon_align as _align_fn
+    else:
+        _align_fn = codon_align
+
     @intermediate_processor('codon-alignment')
     def processor(
         iterator: Iterable[RefSeqPair], *args: Any
@@ -721,7 +974,7 @@ def codon_alignment(
                     'Codon alignment only applies to nucleotide '
                     'sequences.')
 
-            seqnas: List[NAPosition] = refseq.seqtext
+            seqnas: list[NAPosition] = refseq.seqtext
 
             if not seqnas:
                 # skip empty sequences
@@ -730,7 +983,7 @@ def codon_alignment(
                 my_ref_end: int = ref_end
                 if my_ref_end <= 0:
                     my_ref_end = NAPosition.max_pos(seqnas)
-                yield codon_align(
+                yield _align_fn(
                     refseq,
                     seq,
                     min_gap_distance,

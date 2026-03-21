@@ -1,11 +1,11 @@
 """API-level tests for codon_align().
 
 Tests the public API only — no internal functions — so the test suite
-remains valid across all optimization tiers (T1–T4).
+remains valid across the Python and Rust backends.
 
 The autouse fixture ``_codon_align_impl`` parametrizes every test in
-this module over both the original (T1) and optimized (T2) backends,
-ensuring identical outputs.
+this module over the pure-Python/Cython backend and the Rust-accelerated
+backend, ensuring identical outputs.
 """
 
 import sys
@@ -15,36 +15,24 @@ import pytest
 from postalign.processors.codon_alignment import (
     REFGAP,
     SEQGAP,
-    codon_align as _t1_codon_align,
-)
-from postalign.processors.codon_alignment_optimized import (
-    codon_align as _t2_codon_align,
+    codon_align as _python_codon_align,
 )
 from postalign.processors.codon_alignment_rust import (
-    codon_align as _t4_codon_align,
-)
-from postalign.processors.codon_alignment_cython import (
-    codon_align as _t3_codon_align,
-)
-from postalign.processors.codon_alignment_rust_t5 import (
-    codon_align as _t5_codon_align,
+    codon_align as _rust_codon_align,
 )
 
 from tests.conftest import make_run_codon_align
 
-# Default: T1 (overridden per-test by the fixture below)
-run_codon_align = make_run_codon_align(_t1_codon_align)
+# Default: Python (overridden per-test by the fixture below)
+run_codon_align = make_run_codon_align(_python_codon_align)
 
 _IMPLS = {
-    'T1': _t1_codon_align,
-    'T2': _t2_codon_align,
-    'T3': _t3_codon_align,
-    'T4': _t4_codon_align,
-    'T5': _t5_codon_align,
+    'python': _python_codon_align,
+    'rust': _rust_codon_align,
 }
 
 
-@pytest.fixture(params=['T1', 'T2', 'T3', 'T4', 'T5'], autouse=True)
+@pytest.fixture(params=['python', 'rust'], autouse=True)
 def _codon_align_impl(request, monkeypatch):
     """Swap module-level run_codon_align to use the selected backend."""
     impl = _IMPLS[request.param]

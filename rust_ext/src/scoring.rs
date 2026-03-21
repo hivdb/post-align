@@ -1,6 +1,6 @@
 //! Scoring tables and functions: BLOSUM62, IUPAC, codon translation.
 //!
-//! T5 optimizations: precomputed IUPAC lookup table, inline codon
+//! Optimisations: precomputed IUPAC lookup table, inline codon
 //! translation with [u8;4] (no heap), precomputed BLOSUM62 table.
 
 // ---------------------------------------------------------------------------
@@ -348,7 +348,7 @@ pub fn calc_match_score_precomputed(
 }
 
 // ---------------------------------------------------------------------------
-// T5: InlineAA-based BLOSUM62 scoring (no heap)
+// InlineAA-based BLOSUM62 scoring (no heap)
 // ---------------------------------------------------------------------------
 
 /// Score two InlineAA codon translations.
@@ -382,7 +382,7 @@ pub fn blosum62_score_inline(a: &InlineAA, b: &InlineAA) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
-// T5: Full-window score computation (IUPAC + BLOSUM62) using flat arrays
+// Full-window score computation (IUPAC + BLOSUM62) using flat arrays
 // ---------------------------------------------------------------------------
 
 /// Compute the full IUPAC + BLOSUM62 score for a window.

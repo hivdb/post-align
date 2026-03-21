@@ -46,22 +46,12 @@ if 'build_ext' in sys.argv:
             name='postalign.utils.iupac',
             sources=['postalign/utils/iupac.py']
         ),
-        # --- T1: original ---
+        # --- codon alignment: Python/Cython backend ---
         Extension(
             name='postalign.processors.codon_alignment',
             sources=['postalign/processors/codon_alignment.py']
         ),
-        # --- T2: optimized Python + D ---
-        Extension(
-            name='postalign.processors.codon_alignment_optimized',
-            sources=['postalign/processors/codon_alignment_optimized.py']
-        ),
-        # --- T3: Cython byte-array + D ---
-        Extension(
-            name='postalign.processors.codon_alignment_cython',
-            sources=['postalign/processors/codon_alignment_cython.py']
-        ),
-        # --- T4: Rust wrapper (thin Python layer) ---
+        # --- codon alignment: Rust wrapper (thin Python layer) ---
         Extension(
             name='postalign.processors.codon_alignment_rust',
             sources=['postalign/processors/codon_alignment_rust.py']

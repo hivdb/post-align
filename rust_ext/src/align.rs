@@ -11,6 +11,12 @@ use crate::scoring;
 // Types
 // ---------------------------------------------------------------------------
 
+/// A single nucleotide-acid position in an alignment.
+///
+/// Mirrors `NAPosition` on the Python side.  `notation` stores the
+/// ASCII byte of the IUPAC character (or `b'-'`/`b'.'` for gaps),
+/// `pos` is the 1-based reference position (`-1` for gaps), and
+/// `flag` carries `PositionFlag` metadata.
 #[derive(Clone, Copy, Debug)]
 pub struct NaPos {
     pub notation: u8,
@@ -25,6 +31,9 @@ impl NaPos {
     }
 }
 
+/// Per-gap-type scoring adjustments keyed by `(position, gap_length)`.
+///
+/// Parsed from the Python `gap_placement_score` dictionary in `lib.rs`.
 pub struct GapPlacementScore {
     pub refgap: HashMap<(i32, i32), i32>,
     pub seqgap: HashMap<(i32, i32), i32>,
@@ -153,6 +162,11 @@ fn remove_redundant_gaps(
 // Codon grouping
 // ---------------------------------------------------------------------------
 
+/// Split paired NA sequences into codon-aligned groups.
+///
+/// A new codon group starts every time a non-gap reference position
+/// lands on base-pair 0 (mod 3).  Both the reference and sequence
+/// sides are split at the same boundaries.
 pub fn group_by_codons(
     refnas: &[NaPos],
     seqnas: &[NaPos],
@@ -437,7 +451,7 @@ fn paired_find_best_matches(
 }
 
 // ---------------------------------------------------------------------------
-// T5: Optimized scoring / best-match search
+// Optimized scoring / best-match search
 // ---------------------------------------------------------------------------
 
 /// Build SoA work buffer by inserting gap at position `idx` in nongap arrays.
@@ -454,9 +468,9 @@ fn build_work_notation(
     buf.extend_from_slice(&ng[idx..]);
 }
 
-/// T5-optimized find_best_matches: pre-allocated work buffers, InlineAA,
+/// Optimized find_best_matches: pre-allocated work buffers, InlineAA,
 /// precomputed IUPAC table, per-codon incremental score cache.
-fn find_best_matches_t5(
+fn find_best_matches_optimized(
     mynas_in: &[NaPos],
     othernas: &[NaPos],
     bp1_indices: &HashSet<usize>,
@@ -597,7 +611,7 @@ fn find_best_matches_t5(
     result
 }
 
-fn paired_find_best_matches_t5(
+fn paired_find_best_matches_optimized(
     refnas: &[NaPos],
     seqnas: &[NaPos],
     gap_type: u8,
@@ -618,12 +632,12 @@ fn paired_find_best_matches_t5(
     }
 
     if gap_type == REFGAP {
-        let new_refnas = find_best_matches_t5(
+        let new_refnas = find_best_matches_optimized(
             refnas, seqnas, &bp1_indices, REFGAP, &gps.refgap, false, false,
         );
         (new_refnas, seqnas.to_vec())
     } else {
-        let new_seqnas = find_best_matches_t5(
+        let new_seqnas = find_best_matches_optimized(
             seqnas, refnas, &bp1_indices, SEQGAP, &gps.seqgap,
             is_seq_start, is_seq_end,
         );
@@ -773,6 +787,13 @@ fn adjust_gap_placement(
 // realign_gaps — the main entry point called from Python (T4)
 // ---------------------------------------------------------------------------
 
+/// Codon-aware gap realignment (baseline Rust port).
+///
+/// 1. `gather_gaps` — merge nearby gaps and centre them.
+/// 2. `group_by_codons` — split into codon-aligned groups.
+/// 3. `adjust_gap_placement` — slide each gap group to the
+///    position that maximises the IUPAC + BLOSUM62 score.
+/// 4. Finalise by moving gaps to codon ends.
 pub fn realign_gaps(
     refnas: Vec<NaPos>,
     seqnas: Vec<NaPos>,
@@ -801,10 +822,10 @@ pub fn realign_gaps(
 }
 
 // ---------------------------------------------------------------------------
-// T5: adjust_gap_placement using optimized scoring
+// adjust_gap_placement using optimized scoring
 // ---------------------------------------------------------------------------
 
-fn adjust_gap_placement_t5(
+fn adjust_gap_placement_optimized(
     mut refcodons: Vec<Vec<NaPos>>,
     mut seqcodons: Vec<Vec<NaPos>>,
     window_size: usize,
@@ -886,8 +907,7 @@ fn adjust_gap_placement_t5(
         let win_refnas = flatten_codons(&refcds);
         let win_seqnas = flatten_codons(&seqcds);
 
-        // T5: use optimized paired_find_best_matches
-        let (new_refnas, new_seqnas) = paired_find_best_matches_t5(
+        let (new_refnas, new_seqnas) = paired_find_best_matches_optimized(
             &win_refnas,
             &win_seqnas,
             group.gap_type,
@@ -908,10 +928,16 @@ fn adjust_gap_placement_t5(
 }
 
 // ---------------------------------------------------------------------------
-// T5: realign_gaps — optimized entry point
+// realign_gaps_optimized — optimized entry point
 // ---------------------------------------------------------------------------
 
-pub fn realign_gaps_t5(
+/// Optimised codon-aware gap realignment.
+///
+/// Same algorithm as [`realign_gaps`] but uses the optimised scoring
+/// path: precomputed IUPAC lookup table, `InlineAA` codon translation
+/// (no heap allocation per codon), incremental per-codon score cache,
+/// and centre-expand search order.
+pub fn realign_gaps_optimized(
     refnas: Vec<NaPos>,
     seqnas: Vec<NaPos>,
     min_gap_distance: i32,
@@ -923,7 +949,7 @@ pub fn realign_gaps_t5(
     let (refnas, seqnas) = gather_gaps(refnas, seqnas, min_gap_distance);
 
     let (refcodons, seqcodons) = group_by_codons(&refnas, &seqnas);
-    let (refcodons, seqcodons) = adjust_gap_placement_t5(
+    let (refcodons, seqcodons) = adjust_gap_placement_optimized(
         refcodons,
         seqcodons,
         window_size as usize,
@@ -936,3 +962,4 @@ pub fn realign_gaps_t5(
 
     (flatten_codons(&refcodons), flatten_codons(&seqcodons))
 }
+

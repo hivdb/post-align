@@ -13,6 +13,7 @@ pytest-benchmark = "*"
 hypothesis = "*"
 matplotlib = "*"
 maturin = "*"
+pytest-cov = "*"
 
 [packages]
 post-align = {editable = true, path = "."}
