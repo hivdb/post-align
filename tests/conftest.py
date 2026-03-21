@@ -6,7 +6,6 @@ from typing import Any
 from postalign.models.na_position import NAPosition
 from postalign.models.position_flag import PositionFlag
 from postalign.models.sequence import Sequence
-
 from postalign.processors.codon_alignment import REFGAP, SEQGAP
 
 DEFAULT_GAP_PLACEMENT_SCORE: dict[int, dict[tuple[int, int], int]] = {
@@ -68,9 +67,7 @@ def make_run_codon_align(
         *,
         min_gap_distance: int = 30,
         window_size: int = 10,
-        gap_placement_score: (
-            dict[int, dict[tuple[int, int], int]] | None
-        ) = None,
+        gap_placement_score: (dict[int, dict[tuple[int, int], int]] | None) = None,
         ref_start: int = 1,
         ref_end: int = -1,
     ) -> tuple[str, str]:
@@ -84,10 +81,13 @@ def make_run_codon_align(
             ref_end = NAPosition.max_pos(refseq.seqtext)
 
         ref_out, seq_out = codon_align_fn(
-            refseq, seq,
-            min_gap_distance, window_size,
+            refseq,
+            seq,
+            min_gap_distance,
+            window_size,
             gap_placement_score,
-            ref_start, ref_end,
+            ref_start,
+            ref_end,
         )
         return seq_to_str(ref_out), seq_to_str(seq_out)
 

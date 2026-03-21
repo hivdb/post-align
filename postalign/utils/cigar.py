@@ -1,6 +1,6 @@
 import re
+
 import cython  # type: ignore
-from typing import List, Tuple, Type
 
 from ..models import Position
 
@@ -10,15 +10,12 @@ CIGAR_PATTERN = re.compile(r'(\d+)([MNDI])')
 @cython.ccall
 @cython.returns(tuple)
 def _get_alignment(
-    cigar: 'CIGAR',
-    refseq: List[Position],
-    seq: List[Position],
-    seqtype: Type[Position]
-) -> Tuple[List[Position], List[Position]]:
+    cigar: 'CIGAR', refseq: list[Position], seq: list[Position], seqtype: type[Position]
+) -> tuple[list[Position], list[Position]]:
     num: int
     op: str
-    aligned_refseq: List[Position] = refseq[cigar.ref_start:]
-    aligned_seq: List[Position] = seq[cigar.seq_start:]
+    aligned_refseq: list[Position] = refseq[cigar.ref_start :]
+    aligned_seq: list[Position] = seq[cigar.seq_start :]
     offset: int = 0
     for num, op in cigar.cigar_tuple:
         if op == 'M':
@@ -33,11 +30,7 @@ def _get_alignment(
     aligned_refseq = aligned_refseq[:offset]
     if len(aligned_refseq) != len(aligned_seq):
         raise ValueError(
-            'Unmatched alignment length: {!r} and {!r}'
-            .format(
-                seqtype.as_str(aligned_refseq),
-                seqtype.as_str(aligned_seq)
-            )
+            f'Unmatched alignment length: {seqtype.as_str(aligned_refseq)!r} and {seqtype.as_str(aligned_seq)!r}'
         )
 
     return aligned_refseq, aligned_seq
@@ -45,32 +38,27 @@ def _get_alignment(
 
 @cython.cclass
 class CIGAR:
-
     ref_start: int
     seq_start: int
     cigar_string: str
-    cigar_tuple: List[Tuple[int, str]]
+    cigar_tuple: list[tuple[int, str]]
 
     def __init__(
-        self: "CIGAR",
-        ref_start: int,
-        seq_start: int,
-        cigar_string: str
+        self: 'CIGAR', ref_start: int, seq_start: int, cigar_string: str
     ) -> None:
         self.ref_start = ref_start
         self.seq_start = seq_start
         self.cigar_string = cigar_string
         self.cigar_tuple = [
-            (int(num), op)
-            for num, op in CIGAR_PATTERN.findall(cigar_string)
+            (int(num), op) for num, op in CIGAR_PATTERN.findall(cigar_string)
         ]
 
-    def get_cigar_string(self: "CIGAR") -> str:
+    def get_cigar_string(self: 'CIGAR') -> str:
         return self.cigar_string
 
-    def shrink_by_ref(self: "CIGAR", keep_size: int) -> "CIGAR":
+    def shrink_by_ref(self: 'CIGAR', keep_size: int) -> 'CIGAR':
         new_string: str
-        new_tuple: List[Tuple[int, str]] = []
+        new_tuple: list[tuple[int, str]] = []
         remain_size: int = keep_size
         for num, op in self.cigar_tuple:
             if op == 'I':
@@ -81,27 +69,19 @@ class CIGAR:
             else:
                 new_tuple.append((remain_size, op))
                 break
-        new_string = ''.join(['{}{}'.format(num, op) for num, op in new_tuple])
-        return CIGAR(
-            self.ref_start,
-            self.seq_start,
-            new_string
-        )
+        new_string = ''.join([f'{num}{op}' for num, op in new_tuple])
+        return CIGAR(self.ref_start, self.seq_start, new_string)
 
     def get_alignment(
-        self: "CIGAR",
-        refseq: List[Position],
-        seq: List[Position],
-        seqtype: Type[Position]
-    ) -> Tuple[List[Position], List[Position]]:
-        alignment: Tuple[
-            List[Position],
-            List[Position]
-        ] = _get_alignment(self, refseq, seq, seqtype)
+        self: 'CIGAR',
+        refseq: list[Position],
+        seq: list[Position],
+        seqtype: type[Position],
+    ) -> tuple[list[Position], list[Position]]:
+        alignment: tuple[list[Position], list[Position]] = _get_alignment(
+            self, refseq, seq, seqtype
+        )
         return alignment
 
-    def __repr__(self: "CIGAR") -> str:
-        return ('<CIGAR {!r} ref_start={!r} seq_start={!r}>'
-                .format(self.cigar_string,
-                        self.ref_start,
-                        self.seq_start))
+    def __repr__(self: 'CIGAR') -> str:
+        return f'<CIGAR {self.cigar_string!r} ref_start={self.ref_start!r} seq_start={self.seq_start!r}>'

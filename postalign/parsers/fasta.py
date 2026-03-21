@@ -1,16 +1,14 @@
-from typing import Type, TextIO, Iterable, Generator
+from collections.abc import Generator, Iterable
+from typing import TextIO
 
-from ..models import Sequence, Position
+from ..models import Position, Sequence
 
 GAP_CHARS = b'.-'
 
 
 def load(
-    fp: TextIO,
-    seqtype: Type[Position],
-    *,
-    remove_gaps: bool = False
-) -> Generator[Sequence, None, None]:
+    fp: TextIO, seqtype: type[Position], *, remove_gaps: bool = False
+) -> Generator[Sequence]:
     header: str = ''
     curseq: bytearray = bytearray()
     seqid: int = 0
@@ -33,7 +31,8 @@ def load(
             seqid=seqid,
             seqtype=seqtype,
             abs_seqstart=0,
-            skip_invalid=True)
+            skip_invalid=True,
+        )
 
     for line in fp:
         if line.startswith('>'):
@@ -49,9 +48,5 @@ def load(
         yield make_seq()
 
 
-def dump(
-    sequences: Iterable[Sequence],
-    fp: TextIO,
-    seqtype: str
-) -> None:
+def dump(sequences: Iterable[Sequence], fp: TextIO, seqtype: str) -> None:
     pass

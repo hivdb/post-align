@@ -10,7 +10,6 @@ from postalign.processors.codon_alignment import (
 
 
 class TestParseGapPlacementScore:
-
     def test_empty_string(self) -> None:
         result = parse_gap_placement_score('')
         assert result == {REFGAP: {}, SEQGAP: {}}

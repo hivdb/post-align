@@ -1,8 +1,8 @@
-import cython  # type: ignore
-from typing import Dict, Tuple
 from itertools import product
 
-BLOSUM62: Dict[Tuple[int, ...], int] = {
+import cython  # type: ignore
+
+BLOSUM62: dict[tuple[int, ...], int] = {
     tuple(b'AA'): 4,
     tuple(b'AC'): 0,
     tuple(b'AD'): -2,
@@ -415,11 +415,11 @@ def blosum62_score(
     a_fs_penalty: int = -1,
     b_fs_penalty: int = -1,
     a_del_penalty: int = -1,
-    b_del_penalty: int = -1
+    b_del_penalty: int = -1,
 ) -> float:
     aa_a: int
     aa_b: int
-    total_score: float = 0.
+    total_score: float = 0.0
     total_n: int = 0
     for aa_a, aa_b in product(a, b):
         if aa_a == aa_b == del_as:
@@ -444,4 +444,4 @@ def blosum62_score(
             # if a or b is unrecognizable, silently skip
             total_score += BLOSUM62.get((aa_a, aa_b), 0)
         total_n += 1
-    return total_score / total_n if total_n else 0.
+    return total_score / total_n if total_n else 0.0

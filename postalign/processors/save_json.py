@@ -1,50 +1,47 @@
-import orjson
+from collections.abc import Iterable
+from textwrap import indent
+from typing import TypedDict
+
 # import math
 import click
-from textwrap import indent
-from typing import Tuple, List, Iterable, TypedDict, Optional, Dict
+import orjson
 from more_itertools import chunked
 
 from ..cli import cli
-from ..utils import group_by_gene_codons, find_codon_trim_slice
-from ..utils.codonutils import translate_codon
-from ..models import RefSeqPair, NAPosition, Sequence, PositionFlag, Message
+from ..models import Message, NAPosition, PositionFlag, RefSeqPair, Sequence
 from ..processor import Processor, output_processor
+from ..utils import find_codon_trim_slice, group_by_gene_codons
+from ..utils.codonutils import translate_codon
 
 
 def gene_range_tuples_callback(
-    ctx: click.Context,
-    param: str,
-    value: Tuple[str]
-) -> List[Tuple[str, List[Tuple[int, int]]]]:
+    ctx: click.Context, param: str, value: tuple[str]
+) -> list[tuple[str, list[tuple[int, int]]]]:
     one: str
-    tuples: List[Tuple[str, List[Tuple[int, int]]]] = []
+    tuples: list[tuple[str, list[tuple[int, int]]]] = []
     cur_gene: str = ''
-    cur_ranges: List[int] = []
+    cur_ranges: list[int] = []
     # use $$ as the end, it never goes into the results
-    for one in value + ('$$', ):
+    for one in (*value, '$$'):
         if one.isdigit():
             cur_ranges.append(int(one))
         else:
             if cur_gene and cur_ranges:
                 if len(cur_ranges) % 2 != 0:
                     raise click.ClickException(
-                        'Missing paired range values: <GENE>{}'
-                        .format(cur_gene)
+                        f'Missing paired range values: <GENE>{cur_gene}'
                     )
-                cur_range_chunks: List[Tuple[int, int]] = []
+                cur_range_chunks: list[tuple[int, int]] = []
 
                 for refstart, refend in chunked(cur_ranges, 2):
                     if refstart < 1:
                         raise click.ClickException(
-                            'argument <REF_START>:{} must be not less than 1'
-                            .format(refstart)
+                            f'argument <REF_START>:{refstart} must be not less than 1'
                         )
                     if refend - 2 < refstart:
                         raise click.ClickException(
                             'no enough codon between arguments <REF_START>'
-                            ':{} and <REF_END>:{}'
-                            .format(refstart, refend)
+                            f':{refstart} and <REF_END>:{refend}'
                         )
                     cur_range_chunks.append((refstart, refend))
                 tuples.append((cur_gene, cur_range_chunks))
@@ -66,7 +63,7 @@ class CodonPair(TypedDict):
 
 class AlignedSite(TypedDict):
     PosAA: int
-    PosNAs: List[Optional[int]]
+    PosNAs: list[int | None]
     LengthNA: int
 
 
@@ -74,16 +71,16 @@ class AlignedSite(TypedDict):
 class FrameShift(TypedDict, total=False):
     Position: int
     GapLength: int
-    NucleicAcidsText: Optional[str]
+    NucleicAcidsText: str | None
     IsInsertion: int
 
 
 class GeneReportInner(TypedDict, total=False):
     FirstAA: int
     LastAA: int
-    AlignedSites: List[AlignedSite]
-    Mutations: List[CodonPair]
-    FrameShifts: List[FrameShift]
+    AlignedSites: list[AlignedSite]
+    Mutations: list[CodonPair]
+    FrameShifts: list[FrameShift]
 
 
 class GeneReport(TypedDict):
@@ -94,19 +91,15 @@ class GeneReport(TypedDict):
 
 class Payload(TypedDict):
     Name: str
-    Modifiers: List[List[str]]
-    GeneReports: List[GeneReport]
-    Messages: List[Dict[str, str]]
+    Modifiers: list[list[str]]
+    GeneReports: list[GeneReport]
+    Messages: list[dict[str, str]]
 
 
 @cli.command('save-json')
-@click.argument(
-    'gene_range_tuples',
-    callback=gene_range_tuples_callback,
-    nargs=-1
-)
+@click.argument('gene_range_tuples', callback=gene_range_tuples_callback, nargs=-1)
 def save_json(
-    gene_range_tuples: List[Tuple[str, List[Tuple[int, int]]]]
+    gene_range_tuples: list[tuple[str, list[tuple[int, int]]]],
 ) -> Processor[Iterable[str]]:
     """Save as NucAmino style JSON reports
 
@@ -119,51 +112,44 @@ def save_json(
 
     @output_processor('save-json')
     def processor(
-        iterator: Iterable[RefSeqPair],
-        messages: List[Message]
+        iterator: Iterable[RefSeqPair], messages: list[Message]
     ) -> Iterable[str]:
         # TODO: MSA remap?
         refseq: Sequence
         seq: Sequence
         yield '[\n'
         for idx, (refseq, seq) in enumerate(iterator):
-            reftext: List[NAPosition] = refseq.seqtext
-            seqtext: List[NAPosition] = seq.seqtext
+            reftext: list[NAPosition] = refseq.seqtext
+            seqtext: list[NAPosition] = seq.seqtext
             seqmessages = [m for m in messages if m.seqid == seq.seqid]
 
             payload: Payload = {
                 'Name': seq.description,
-                'Modifiers': [[str(mod) for mod in mods]
-                              for _, mods in seq.modifiers],
+                'Modifiers': [[str(mod) for mod in mods] for _, mods in seq.modifiers],
                 'GeneReports': [],
-                'Messages': [m.to_dict() for m in seqmessages]
+                'Messages': [m.to_dict() for m in seqmessages],
             }
 
-            gene_codons: List[
-                Tuple[
-                    str,
-                    List[List[NAPosition]],
-                    List[List[NAPosition]]
-                ]
-            ] = group_by_gene_codons(
-                reftext, seqtext, gene_range_tuples)
+            gene_codons: list[
+                tuple[str, list[list[NAPosition]], list[list[NAPosition]]]
+            ] = group_by_gene_codons(reftext, seqtext, gene_range_tuples)
 
             gene: str
-            refcodons: List[List[NAPosition]]
-            seqcodons: List[List[NAPosition]]
+            refcodons: list[list[NAPosition]]
+            seqcodons: list[list[NAPosition]]
             for gene, refcodons, seqcodons in gene_codons:
                 pos0: int
-                refcd: List[NAPosition]
-                seqcd: List[NAPosition]
-                codonpairs: List[CodonPair] = []
-                aligned_sites: List[AlignedSite] = []
-                frameshifts: List[FrameShift] = []
+                refcd: list[NAPosition]
+                seqcd: list[NAPosition]
+                codonpairs: list[CodonPair] = []
+                aligned_sites: list[AlignedSite] = []
+                frameshifts: list[FrameShift] = []
 
                 trim_slice: slice = find_codon_trim_slice(seqcodons)
 
-                for pos0, (refcd, seqcd) in list(
-                    enumerate(zip(refcodons, seqcodons))
-                )[trim_slice]:
+                for pos0, (refcd, seqcd) in list(enumerate(zip(refcodons, seqcodons, strict=False)))[
+                    trim_slice
+                ]:
                     na: NAPosition
                     ins_fs_len: int
                     del_fs_len: int
@@ -178,71 +164,79 @@ def save_json(
                         ins_fs_len = nalen % 3
                         del_fs_len = 0
                     codon_text: str = NAPosition.as_str(seqcd[:3])
-                    if NAPosition.any_has_flag(
-                        seqcd[:3], PositionFlag.TRIM_BY_SEQ
-                    ):
+                    if NAPosition.any_has_flag(seqcd[:3], PositionFlag.TRIM_BY_SEQ):
                         continue
-                    codonpairs.append({
-                        'Position': pos0 + 1,
-                        'RefCodonText': NAPosition.as_str(refcd[:3]),
-                        'CodonText': codon_text,
-                        'RefAminoAcidText': str(
-                            translate_codon(refcd[:3]), 'ASCII'),
-                        'AminoAcidText': str(
-                            translate_codon(seqcd[:3]), 'ASCII'),
-                        'InsertedCodonsText': NAPosition.as_str(
-                            seqcd[3:len(seqcd) - ins_fs_len]
-                        ),
-                        'IsInsertion': len(refcd) > 5,
-                        'IsDeletion': codon_text == '---'
-                    })
-                    posnas: List[Optional[int]] = []
+                    codonpairs.append(
+                        {
+                            'Position': pos0 + 1,
+                            'RefCodonText': NAPosition.as_str(refcd[:3]),
+                            'CodonText': codon_text,
+                            'RefAminoAcidText': str(
+                                translate_codon(refcd[:3]), 'ASCII'
+                            ),
+                            'AminoAcidText': str(translate_codon(seqcd[:3]), 'ASCII'),
+                            'InsertedCodonsText': NAPosition.as_str(
+                                seqcd[3 : len(seqcd) - ins_fs_len]
+                            ),
+                            'IsInsertion': len(refcd) > 5,
+                            'IsDeletion': codon_text == '---',
+                        }
+                    )
+                    posnas: list[int | None] = []
                     for na in seqcd:
                         pos: int = na.pos
                         posnas.append(pos if pos > -1 else None)
-                    aligned_sites.append({
-                        'PosAA': pos0 + 1,  # reference location
-                        'PosNAs': posnas,
-                        'LengthNA': nalen
-                    })
+                    aligned_sites.append(
+                        {
+                            'PosAA': pos0 + 1,  # reference location
+                            'PosNAs': posnas,
+                            'LengthNA': nalen,
+                        }
+                    )
                     if ins_fs_len:
-                        frameshifts.append({
-                            'Position': pos0 + 1,
-                            'GapLength': ins_fs_len,
-                            'NucleicAcidsText':
-                            NAPosition.as_str(seqcd[-ins_fs_len:]),
-                            'IsInsertion': True
-                        })
+                        frameshifts.append(
+                            {
+                                'Position': pos0 + 1,
+                                'GapLength': ins_fs_len,
+                                'NucleicAcidsText': NAPosition.as_str(
+                                    seqcd[-ins_fs_len:]
+                                ),
+                                'IsInsertion': True,
+                            }
+                        )
                     elif del_fs_len:
-                        frameshifts.append({
-                            'Position': pos0 + 1,
-                            'GapLength': del_fs_len,
-                            'IsInsertion': False
-                        })
-                mutations: List[CodonPair] = [
-                    cd for cd in codonpairs
-                    if cd['RefAminoAcidText'] != cd['AminoAcidText'] or
-                    cd['IsInsertion']
+                        frameshifts.append(
+                            {
+                                'Position': pos0 + 1,
+                                'GapLength': del_fs_len,
+                                'IsInsertion': False,
+                            }
+                        )
+                mutations: list[CodonPair] = [
+                    cd
+                    for cd in codonpairs
+                    if cd['RefAminoAcidText'] != cd['AminoAcidText']
+                    or cd['IsInsertion']
                 ]
 
                 if codonpairs:
-                    payload['GeneReports'].append({
-                        'Gene': gene,
-                        'Report': {
-                            'FirstAA': codonpairs[0]['Position'],
-                            'LastAA': codonpairs[-1]['Position'],
-                            'AlignedSites': aligned_sites,
-                            'Mutations': mutations,
-                            'FrameShifts': frameshifts
-                        },
-                        'Error': ''
-                    })
+                    payload['GeneReports'].append(
+                        {
+                            'Gene': gene,
+                            'Report': {
+                                'FirstAA': codonpairs[0]['Position'],
+                                'LastAA': codonpairs[-1]['Position'],
+                                'AlignedSites': aligned_sites,
+                                'Mutations': mutations,
+                                'FrameShifts': frameshifts,
+                            },
+                            'Error': '',
+                        }
+                    )
                 else:
-                    payload['GeneReports'].append({
-                        'Gene': gene,
-                        'Report': {},
-                        'Error': 'Sequence is not aligned'
-                    })
+                    payload['GeneReports'].append(
+                        {'Gene': gene, 'Report': {}, 'Error': 'Sequence is not aligned'}
+                    )
 
             text: bytes = orjson.dumps(payload, option=orjson.OPT_INDENT_2)
             if idx > 0:

@@ -4,40 +4,38 @@ Targets functions not exercised through the public codon_align() API
 to boost coverage toward >95%.
 """
 
+import click
 import pytest
 
 from postalign.models.na_position import NAPosition
 from postalign.models.position_flag import PositionFlag
-
-import click
 from postalign.processors.codon_alignment import (
-    REFGAP,
-    SEQGAP,
-    NOGAP,
     LEFT,
+    NOGAP,
+    REFGAP,
     RIGHT,
+    SEQGAP,
+    calc_match_score_precomputed,
+    center_expand_positions,
+    extend_codons_until_gap,
     find_first_gap,
-    separate_gaps_from_nas,
+    find_windows_with_gap,
+    gap_placement_score_callback,
+    gather_gaps,
+    move_gap_to_codon_end,
+    parse_gap_placement_score,
+    realign_gaps,
     remove_n_gaps,
     remove_redundant_gaps,
-    move_gap_to_codon_end,
-    find_windows_with_gap,
-    extend_codons_until_gap,
-    center_expand_positions,
-    calc_match_score_precomputed,
-    gather_gaps,
-    realign_gaps,
-    parse_gap_placement_score,
-    gap_placement_score_callback,
+    separate_gaps_from_nas,
 )
 from postalign.utils.codonutils import translate_codons
-
 from tests.conftest import make_na_positions
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _na(ch: str, pos: int = -1) -> NAPosition:
     """Shorthand for creating a single NAPosition."""
@@ -53,8 +51,8 @@ def _nas(s: str) -> list[NAPosition]:
 # find_first_gap
 # ---------------------------------------------------------------------------
 
-class TestFindFirstGap:
 
+class TestFindFirstGap:
     def test_no_gap(self) -> None:
         assert find_first_gap(_nas('ATGATG')) == -1
 
@@ -78,8 +76,8 @@ class TestFindFirstGap:
 # separate_gaps_from_nas
 # ---------------------------------------------------------------------------
 
-class TestSeparateGapsFromNas:
 
+class TestSeparateGapsFromNas:
     def test_no_gaps(self) -> None:
         nas = _nas('ATGATG')
         nongaps, gaps = separate_gaps_from_nas(nas)
@@ -105,8 +103,8 @@ class TestSeparateGapsFromNas:
 # remove_n_gaps
 # ---------------------------------------------------------------------------
 
-class TestRemoveNGaps:
 
+class TestRemoveNGaps:
     def test_remove_zero(self) -> None:
         nas = _nas('A-G-T')
         result = remove_n_gaps(nas, 0)
@@ -134,8 +132,8 @@ class TestRemoveNGaps:
 # remove_redundant_gaps
 # ---------------------------------------------------------------------------
 
-class TestRemoveRedundantGaps:
 
+class TestRemoveRedundantGaps:
     def test_no_redundant(self) -> None:
         ref = _nas('ATG---ATG')
         seq = _nas('ATGCCCATG')
@@ -163,8 +161,8 @@ class TestRemoveRedundantGaps:
 # move_gap_to_codon_end
 # ---------------------------------------------------------------------------
 
-class TestMoveGapToCodonEnd:
 
+class TestMoveGapToCodonEnd:
     def test_gap_already_at_end(self) -> None:
         codon = [_na('A', 1), _na('T', 2), _na('-')]
         result = move_gap_to_codon_end([codon])
@@ -196,8 +194,8 @@ class TestMoveGapToCodonEnd:
 # find_windows_with_gap
 # ---------------------------------------------------------------------------
 
-class TestFindWindowsWithGap:
 
+class TestFindWindowsWithGap:
     def test_no_gaps(self) -> None:
         ref = _nas('ATGATG')
         seq = _nas('ATGATG')
@@ -228,8 +226,8 @@ class TestFindWindowsWithGap:
 # center_expand_positions
 # ---------------------------------------------------------------------------
 
-class TestCenterExpandPositions:
 
+class TestCenterExpandPositions:
     def test_basic_expansion(self) -> None:
         positions = center_expand_positions(6, 0, 12, 3)
         assert positions[0] == 6
@@ -260,28 +258,28 @@ class TestCenterExpandPositions:
 # extend_codons_until_gap
 # ---------------------------------------------------------------------------
 
-class TestExtendCodonsUntilGap:
 
+class TestExtendCodonsUntilGap:
     def test_right_no_gaps(self) -> None:
         c1 = [_na('A', 1), _na('T', 2), _na('G', 3)]
         c2 = [_na('C', 4), _na('C', 5), _na('A', 6)]
-        r, s, count = extend_codons_until_gap([c1, c2], [c1, c2], RIGHT)
+        _r, _s, count = extend_codons_until_gap([c1, c2], [c1, c2], RIGHT)
         assert count == 2
 
     def test_right_gap_at_start(self) -> None:
         c1 = [_na('-'), _na('T', 1), _na('G', 2)]
         c2 = [_na('A', 3), _na('T', 4), _na('G', 5)]
-        r, s, count = extend_codons_until_gap([c1, c2], [c1, c2], RIGHT)
+        _r, _s, count = extend_codons_until_gap([c1, c2], [c1, c2], RIGHT)
         assert count == 0
 
     def test_left_direction(self) -> None:
         c1 = [_na('A', 1), _na('T', 2), _na('G', 3)]
         c2 = [_na('C', 4), _na('C', 5), _na('A', 6)]
-        r, s, count = extend_codons_until_gap([c1, c2], [c1, c2], LEFT)
+        _r, _s, count = extend_codons_until_gap([c1, c2], [c1, c2], LEFT)
         assert count == 2
 
     def test_empty_input(self) -> None:
-        r, s, count = extend_codons_until_gap([], [], RIGHT)
+        _r, _s, count = extend_codons_until_gap([], [], RIGHT)
         assert count == 0
 
 
@@ -289,8 +287,8 @@ class TestExtendCodonsUntilGap:
 # parse_gap_placement_score
 # ---------------------------------------------------------------------------
 
-class TestParseGapPlacementScore:
 
+class TestParseGapPlacementScore:
     def test_empty_string(self) -> None:
         result = parse_gap_placement_score('')
         assert result == {REFGAP: {}, SEQGAP: {}}
@@ -335,8 +333,8 @@ class TestParseGapPlacementScore:
 # calc_match_score_precomputed
 # ---------------------------------------------------------------------------
 
-class TestCalcMatchScorePrecomputed:
 
+class TestCalcMatchScorePrecomputed:
     def test_identical_sequences_positive_score(self) -> None:
         nas = _nas('ATGATG')
         other_aas = translate_codons(nas)
@@ -363,8 +361,8 @@ class TestCalcMatchScorePrecomputed:
 # gather_gaps
 # ---------------------------------------------------------------------------
 
-class TestGatherGaps:
 
+class TestGatherGaps:
     def test_no_gaps(self) -> None:
         ref = _nas('ATGATG')
         seq = _nas('ATGATG')
@@ -375,7 +373,7 @@ class TestGatherGaps:
     def test_single_gap(self) -> None:
         ref = _nas('ATG---ATG')
         seq = _nas('ATGCCCATG')
-        r, s = gather_gaps(ref, seq, 30)
+        r, _s = gather_gaps(ref, seq, 30)
         assert NAPosition.count_gaps(r) == 3
 
     def test_redundant_gaps_removed(self) -> None:
@@ -390,12 +388,12 @@ class TestGatherGaps:
 # realign_gaps
 # ---------------------------------------------------------------------------
 
-class TestRealignGaps:
 
+class TestRealignGaps:
     def test_no_gaps_passthrough(self) -> None:
         ref = _nas('ATGATGATG')
         seq = _nas('ATGATGATG')
-        gps = {REFGAP: {}, SEQGAP: {}}
+        gps: dict[int, dict[tuple[int, int], int]] = {REFGAP: {}, SEQGAP: {}}
         r, s = realign_gaps(ref, seq, 30, 10, gps, False, False)
         assert NAPosition.as_str(r) == 'ATGATGATG'
         assert NAPosition.as_str(s) == 'ATGATGATG'
@@ -403,7 +401,7 @@ class TestRealignGaps:
     def test_with_gap(self) -> None:
         ref = _nas('ATGATGATGATG')
         seq = _nas('ATGATG---ATG')
-        gps = {REFGAP: {}, SEQGAP: {}}
+        gps: dict[int, dict[tuple[int, int], int]] = {REFGAP: {}, SEQGAP: {}}
         r, s = realign_gaps(ref, seq, 30, 10, gps, False, False)
         assert len(r) == len(s)
         r_str = NAPosition.as_str(r)
@@ -414,16 +412,16 @@ class TestRealignGaps:
     def test_is_seq_start_flag(self) -> None:
         ref = _nas('ATGATGATG')
         seq = _nas('---ATGATG')
-        gps = {REFGAP: {}, SEQGAP: {}}
-        r, s = realign_gaps(ref, seq, 30, 10, gps, True, False)
+        gps: dict[int, dict[tuple[int, int], int]] = {REFGAP: {}, SEQGAP: {}}
+        _r, s = realign_gaps(ref, seq, 30, 10, gps, True, False)
         s_str = NAPosition.as_str(s)
         assert s_str.startswith('---')
 
     def test_is_seq_end_flag(self) -> None:
         ref = _nas('ATGATGATG')
         seq = _nas('ATGATG---')
-        gps = {REFGAP: {}, SEQGAP: {}}
-        r, s = realign_gaps(ref, seq, 30, 10, gps, False, True)
+        gps: dict[int, dict[tuple[int, int], int]] = {REFGAP: {}, SEQGAP: {}}
+        _r, s = realign_gaps(ref, seq, 30, 10, gps, False, True)
         s_str = NAPosition.as_str(s)
         assert s_str.endswith('---')
 
@@ -432,8 +430,8 @@ class TestRealignGaps:
 # Constants
 # ---------------------------------------------------------------------------
 
-class TestConstants:
 
+class TestConstants:
     def test_gap_type_values(self) -> None:
         assert NOGAP == 0
         assert REFGAP == 1
@@ -448,23 +446,21 @@ class TestConstants:
 # gap_placement_score_callback
 # ---------------------------------------------------------------------------
 
-class TestGapPlacementScoreCallback:
 
+class TestGapPlacementScoreCallback:
     def _make_param(self) -> click.Option:
         return click.Option(['--gap-placement-score'])
 
     def test_valid_input(self) -> None:
         ctx = click.Context(click.Command('test'))
         param = self._make_param()
-        result = gap_placement_score_callback(
-            ctx, param, ('204ins:-5',))
+        result = gap_placement_score_callback(ctx, param, ('204ins:-5',))
         assert result[REFGAP] == {(204, 0): -5}
 
     def test_multiple_values_joined(self) -> None:
         ctx = click.Context(click.Command('test'))
         param = self._make_param()
-        result = gap_placement_score_callback(
-            ctx, param, ('204ins:-5', '100del:10'))
+        result = gap_placement_score_callback(ctx, param, ('204ins:-5', '100del:10'))
         assert result[REFGAP] == {(204, 0): -5}
         assert result[SEQGAP] == {(100, 0): 10}
 
@@ -472,8 +468,7 @@ class TestGapPlacementScoreCallback:
         ctx = click.Context(click.Command('test'))
         param = self._make_param()
         with pytest.raises(click.BadOptionUsage):
-            gap_placement_score_callback(
-                ctx, param, ('INVALID',))
+            gap_placement_score_callback(ctx, param, ('INVALID',))
 
     def test_empty_param_name_raises(self) -> None:
         ctx = click.Context(click.Command('test'))
@@ -481,57 +476,69 @@ class TestGapPlacementScoreCallback:
         # Override name to empty string (falsy)
         param.name = ''
         with pytest.raises(click.BadParameter):
-            gap_placement_score_callback(
-                ctx, param, ('204ins:-5',))
+            gap_placement_score_callback(ctx, param, ('204ins:-5',))
 
 
 # ---------------------------------------------------------------------------
 # CLI codon_alignment command
 # ---------------------------------------------------------------------------
 
-class TestCLICommand:
 
+class TestCLICommand:
     def test_command_exists(self) -> None:
         """codon-alignment is registered on the root CLI."""
         from postalign.cli import cli as root_cli
+
         assert 'codon-alignment' in root_cli.commands
 
     def test_codon_alignment_returns_processor(self) -> None:
         """Invoke the Click command directly to get a Processor."""
         from postalign.cli import cli as root_cli
+
         cmd = root_cli.commands['codon-alignment']
         ctx = click.Context(cmd)
         # Invoke with default params using standalone_mode=False
         proc = ctx.invoke(
-            cmd, min_gap_distance=30, window_size=10,
+            cmd,
+            min_gap_distance=30,
+            window_size=10,
             gap_placement_score={REFGAP: {}, SEQGAP: {}},
-            backend='python', ref_start=1, ref_end=100)
+            backend='python',
+            ref_start=1,
+            ref_end=100,
+        )
         assert callable(proc)
 
     def test_ref_start_zero_raises(self) -> None:
         """ref_start < 1 should raise ClickException."""
         from postalign.cli import cli as root_cli
+
         cmd = root_cli.commands['codon-alignment']
         ctx = click.Context(cmd)
         with pytest.raises(click.ClickException):
             ctx.invoke(
-                cmd, min_gap_distance=30,
+                cmd,
+                min_gap_distance=30,
                 window_size=10,
-                gap_placement_score={
-                    REFGAP: {}, SEQGAP: {}},
+                gap_placement_score={REFGAP: {}, SEQGAP: {}},
                 backend='python',
-                ref_start=0, ref_end=100)
+                ref_start=0,
+                ref_end=100,
+            )
 
     def test_ref_end_too_close_raises(self) -> None:
         """ref_end - 2 < ref_start should raise."""
         from postalign.cli import cli as root_cli
+
         cmd = root_cli.commands['codon-alignment']
         ctx = click.Context(cmd)
         with pytest.raises(click.ClickException):
             ctx.invoke(
-                cmd, min_gap_distance=30,
+                cmd,
+                min_gap_distance=30,
                 window_size=10,
-                gap_placement_score={
-                    REFGAP: {}, SEQGAP: {}},
+                gap_placement_score={REFGAP: {}, SEQGAP: {}},
                 backend='python',
-                ref_start=10, ref_end=10)
+                ref_start=10,
+                ref_end=10,
+            )

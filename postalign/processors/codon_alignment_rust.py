@@ -9,11 +9,11 @@ Rust call (``postalign_rs.codon_align_full``).
 This module exposes the same ``codon_align`` API as the pure-Python
 backend in ``codon_alignment`` so the two are interchangeable.
 """
+
 import cython  # type: ignore
+import postalign_rs  # type: ignore[import-untyped]
 
-from ..models import Sequence, RefSeqPair, NAPosition
-
-import postalign_rs  # Rust extension
+from ..models import NAPosition, RefSeqPair, Sequence
 
 
 @cython.ccall
@@ -25,7 +25,7 @@ def codon_align(
     window_size: int,
     gap_placement_score: dict[int, dict[tuple[int, int], int]],
     ref_start: int,
-    ref_end: int
+    ref_end: int,
 ) -> RefSeqPair:
     """Perform codon-aware gap realignment via the Rust backend.
 
@@ -56,8 +56,12 @@ def codon_align(
     seq_flags = [na.flag for na in seqtext]
 
     result = postalign_rs.codon_align_full(
-        ref_notations, ref_positions, ref_flags,
-        seq_notations, seq_positions, seq_flags,
+        ref_notations,
+        ref_positions,
+        ref_flags,
+        seq_notations,
+        seq_positions,
+        seq_flags,
         min_gap_distance,
         window_size,
         gap_placement_score,
@@ -69,28 +73,35 @@ def codon_align(
         # No alignment needed (no gaps or empty window)
         return refseq, seq
 
-    (idx_start, idx_end,
-     out_ref_n, out_ref_p, out_ref_f,
-     out_seq_n, out_seq_p, out_seq_f) = result
+    (
+        idx_start,
+        idx_end,
+        out_ref_n,
+        out_ref_p,
+        out_ref_f,
+        out_seq_n,
+        out_seq_p,
+        out_seq_f,
+    ) = result
 
     # Reconstruct NAPosition lists from Rust output
     refnas = [
         NAPosition(n, p, f)
-        for n, p, f in zip(out_ref_n, out_ref_p, out_ref_f)
+        for n, p, f in zip(out_ref_n, out_ref_p, out_ref_f, strict=False)
     ]
     seqnas = [
         NAPosition(n, p, f)
-        for n, p, f in zip(out_seq_n, out_seq_p, out_seq_f)
+        for n, p, f in zip(out_seq_n, out_seq_p, out_seq_f, strict=False)
     ]
 
     refseq = refseq.push_seqtext(
-        reftext[:idx_start] +
-        refnas +
-        reftext[idx_end:],
-        'codonalign({},{})'.format(ref_start, ref_end), 0)
+        reftext[:idx_start] + refnas + reftext[idx_end:],
+        f'codonalign({ref_start},{ref_end})',
+        0,
+    )
     seq = seq.push_seqtext(
-        seqtext[:idx_start] +
-        seqnas +
-        seqtext[idx_end:],
-        'codonalign({},{})'.format(ref_start, ref_end), 0)
+        seqtext[:idx_start] + seqnas + seqtext[idx_end:],
+        f'codonalign({ref_start},{ref_end})',
+        0,
+    )
     return refseq, seq

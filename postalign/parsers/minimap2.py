@@ -1,13 +1,15 @@
-import click
+from collections.abc import Iterable
 from io import StringIO
 from pathlib import Path
-from subprocess import Popen, TimeoutExpired, PIPE
+from subprocess import PIPE, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory
-from typing import TextIO, List, Iterable, Type
+from typing import TextIO
 
-from . import fasta, paf
+import click
+
 from ..models import Message
-from ..models.sequence import RefSeqPair, Position
+from ..models.sequence import Position, RefSeqPair
+from . import fasta, paf
 
 DEFAULT_TIMEOUT = 300
 
@@ -15,38 +17,35 @@ DEFAULT_TIMEOUT = 300
 def load(
     fastafp: TextIO,
     reference: TextIO,
-    seqtype: Type[Position],
-    messages: List[Message],
+    seqtype: type[Position],
+    messages: list[Message],
     *,
-    minimap2_execute: List[str] = ['minimap2']
+    minimap2_execute: list[str] | None = None,
 ) -> Iterable[RefSeqPair]:
     dirname: str
-    minimap2_execute = [*minimap2_execute]  # copy in case of overwriting
+    mm2_cmd: list[str] = ['minimap2'] if minimap2_execute is None else list(minimap2_execute)
     with TemporaryDirectory(prefix='postalign-minimap2-') as dirname:
         tempdir = Path(dirname)
-        ref = list(fasta.load(reference, seqtype, remove_gaps=True))[0]
+        ref = next(iter(fasta.load(reference, seqtype, remove_gaps=True)))
         refpath = tempdir / 'target.fa'
         with refpath.open('w') as fp:
-            fp.write('>{}\n{}'.format(
-                ref.headerdesc,
-                ref.seqtext_as_str
-            ))
+            fp.write(f'>{ref.headerdesc}\n{ref.seqtext_as_str}')
         seqpath = tempdir / 'query.fa'
         with seqpath.open('w') as fp:
             for seq in fasta.load(fastafp, seqtype, remove_gaps=True):
-                fp.write('>{} {}\n{}\n'.format(
-                    seq.seqid,
-                    seq.headerdesc,
-                    seq.seqtext_as_str
-                ))
+                fp.write(
+                    f'>{seq.seqid} {seq.headerdesc}\n{seq.seqtext_as_str}\n'
+                )
         proc = Popen(
-            [*minimap2_execute,
-             '-c',           # output CIGAR in PAF
-             str(refpath),   # target.fa
-             str(seqpath)],  # query.fa
+            [
+                *mm2_cmd,
+                '-c',  # output CIGAR in PAF
+                str(refpath),  # target.fa
+                str(seqpath),
+            ],  # query.fa
             stdout=PIPE,
             stderr=PIPE,
-            encoding='utf-8'
+            encoding='utf-8',
         )
         try:
             # TODO: allow to specify timeout through input
@@ -56,9 +55,7 @@ def load(
             outs, errs = proc.communicate()
         if proc.returncode != 0:
             raise click.ClickException(
-                'Error happened during xecuting minimap2: {}'
-                .format(errs)
+                f'Error happened during xecuting minimap2: {errs}'
             )
         paffp = StringIO(outs)
-        return paf.load(paffp, seqpath.open(),
-                        refpath.open(), seqtype, messages)
+        return paf.load(paffp, seqpath.open(), refpath.open(), seqtype, messages)

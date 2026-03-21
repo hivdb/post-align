@@ -4,7 +4,7 @@ These tests verify structural invariants hold for randomly generated
 sequences, complementing the exact-match tests in test_codon_alignment.py.
 """
 
-from hypothesis import given, settings, assume
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from postalign.models.na_position import NAPosition
@@ -13,9 +13,7 @@ from postalign.processors.codon_alignment import (
     SEQGAP,
     codon_align,
 )
-
 from tests.conftest import make_sequence, seq_to_str
-
 
 DEFAULT_GPS: dict[int, dict[tuple[int, int], int]] = {
     REFGAP: {},
@@ -44,7 +42,6 @@ codon_seq = st.integers(min_value=2, max_value=30).flatmap(
 
 
 class TestInvariantsHypothesis:
-
     @given(base_seq=codon_seq)
     @settings(max_examples=200)
     def test_no_gap_passthrough(self, base_seq: str) -> None:
@@ -52,8 +49,7 @@ class TestInvariantsHypothesis:
         ref = make_sequence(base_seq, header='ref', seqid=0)
         seq = make_sequence(base_seq, header='seq', seqid=0)
         max_pos = NAPosition.max_pos(ref.seqtext)
-        ref_out, seq_out = codon_align(
-            ref, seq, 30, 10, DEFAULT_GPS, 1, max_pos)
+        ref_out, seq_out = codon_align(ref, seq, 30, 10, DEFAULT_GPS, 1, max_pos)
         assert seq_to_str(ref_out) == base_seq
         assert seq_to_str(seq_out) == base_seq
 
@@ -63,7 +59,9 @@ class TestInvariantsHypothesis:
     )
     @settings(max_examples=200)
     def test_single_3bp_deletion_preserves_content(
-        self, base_seq: str, gap_codon_idx: int,
+        self,
+        base_seq: str,
+        gap_codon_idx: int,
     ) -> None:
         """A 3bp deletion: non-gap content is preserved in output."""
         n_codons = len(base_seq) // 3
@@ -73,13 +71,12 @@ class TestInvariantsHypothesis:
 
         # ref = full base sequence, seq = base with 3bp gap
         ref_str = base_seq
-        seq_str = base_seq[:gap_pos] + '---' + base_seq[gap_pos + 3:]
+        seq_str = base_seq[:gap_pos] + '---' + base_seq[gap_pos + 3 :]
 
         ref = make_sequence(ref_str, header='ref', seqid=0)
         seq = make_sequence(seq_str, header='seq', seqid=0)
         max_pos = NAPosition.max_pos(ref.seqtext)
-        ref_out, seq_out = codon_align(
-            ref, seq, 30, 10, DEFAULT_GPS, 1, max_pos)
+        ref_out, seq_out = codon_align(ref, seq, 30, 10, DEFAULT_GPS, 1, max_pos)
 
         r = seq_to_str(ref_out)
         s = seq_to_str(seq_out)
@@ -94,7 +91,10 @@ class TestInvariantsHypothesis:
     )
     @settings(max_examples=200)
     def test_single_3bp_insertion_preserves_content(
-        self, base_seq: str, insert_codon_idx: int, insert_bases: str,
+        self,
+        base_seq: str,
+        insert_codon_idx: int,
+        insert_bases: str,
     ) -> None:
         """A 3bp insertion: non-gap content is preserved in output."""
         n_codons = len(base_seq) // 3
@@ -111,8 +111,7 @@ class TestInvariantsHypothesis:
         ref = make_sequence(ref_str, header='ref', seqid=0)
         seq = make_sequence(seq_str, header='seq', seqid=0)
         max_pos = NAPosition.max_pos(ref.seqtext)
-        ref_out, seq_out = codon_align(
-            ref, seq, 30, 10, DEFAULT_GPS, 1, max_pos)
+        ref_out, seq_out = codon_align(ref, seq, 30, 10, DEFAULT_GPS, 1, max_pos)
 
         r = seq_to_str(ref_out)
         s = seq_to_str(seq_out)
@@ -127,7 +126,10 @@ class TestInvariantsHypothesis:
     )
     @settings(max_examples=200)
     def test_window_size_preserves_content(
-        self, base_seq: str, gap_codon_idx: int, window_size: int,
+        self,
+        base_seq: str,
+        gap_codon_idx: int,
+        window_size: int,
     ) -> None:
         """Varying window_size must still preserve non-gap content."""
         n_codons = len(base_seq) // 3
@@ -136,13 +138,14 @@ class TestInvariantsHypothesis:
         gap_pos = gap_codon_idx * 3
 
         ref_str = base_seq
-        seq_str = base_seq[:gap_pos] + '---' + base_seq[gap_pos + 3:]
+        seq_str = base_seq[:gap_pos] + '---' + base_seq[gap_pos + 3 :]
 
         ref = make_sequence(ref_str, header='ref', seqid=0)
         seq = make_sequence(seq_str, header='seq', seqid=0)
         max_pos = NAPosition.max_pos(ref.seqtext)
         ref_out, seq_out = codon_align(
-            ref, seq, 30, window_size, DEFAULT_GPS, 1, max_pos)
+            ref, seq, 30, window_size, DEFAULT_GPS, 1, max_pos
+        )
 
         r = seq_to_str(ref_out)
         s = seq_to_str(seq_out)
