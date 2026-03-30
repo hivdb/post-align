@@ -1,4 +1,3 @@
-
 import cython  # type: ignore
 
 IUPAC: dict[int, set[int]] = {

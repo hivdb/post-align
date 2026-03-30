@@ -130,9 +130,7 @@ class TestSingleDeletion:
         assert seq_out == 'ATGATGATGATG---AT-G'
 
     def test_5bp_deletion(self) -> None:
-        ref_out, seq_out = run_codon_align(
-            'ATGATGCCAATGATGATGATG', 'ATGATG-----ATGATGATGATG'
-        )
+        ref_out, seq_out = run_codon_align('ATGATGCCAATGATGATGATG', 'ATGATG-----ATGATGATGATG')
         assert ref_out == 'ATGATGCCAATGATGATGATG'
         assert seq_out == 'ATGATGATGATGATG---A--TG'
 
@@ -200,9 +198,7 @@ class TestScatteredGaps:
 
 class TestMultipleGaps:
     def test_insertion_and_deletion(self) -> None:
-        ref_out, seq_out = run_codon_align(
-            'ATGATG---CCAATG---ATG', 'ATGATGCCACCA---ATGATG'
-        )
+        ref_out, seq_out = run_codon_align('ATGATG---CCAATG---ATG', 'ATGATGCCACCA---ATGATG')
         assert ref_out == 'ATGATG---CCAATGATG'
         assert seq_out == 'ATGATGCCACCAATGATG'
 
@@ -345,16 +341,12 @@ class TestRedundantGaps:
 
 class TestPartialRange:
     def test_ref_start_limits_application(self) -> None:
-        ref_out, seq_out = run_codon_align(
-            'ATG---ATGATGATGATG', 'ATGCCAATGATGATGATG', ref_start=4
-        )
+        ref_out, seq_out = run_codon_align('ATG---ATGATGATGATG', 'ATGCCAATGATGATGATG', ref_start=4)
         assert ref_out == 'ATGATGATGATGATG'
         assert seq_out == 'ATGATGATGATGATG'
 
     def test_ref_end_limits_application(self) -> None:
-        ref_out, seq_out = run_codon_align(
-            'ATGATGATG---ATGATG', 'ATGATGATGCCAATGATG', ref_end=6
-        )
+        ref_out, seq_out = run_codon_align('ATGATGATG---ATGATG', 'ATGATGATGCCAATGATG', ref_end=6)
         assert ref_out == 'ATGATGATG---ATGATG'
         assert seq_out == 'ATGATGATGCCAATGATG'
 
@@ -371,9 +363,7 @@ class TestGapPlacementScore:
             REFGAP: {},
             SEQGAP: {(7, 0): 100},
         }
-        ref_out, seq_out = run_codon_align(
-            'ATGATGATGATGATGATG', 'ATGATG---ATGATGATG', gap_placement_score=gps
-        )
+        ref_out, seq_out = run_codon_align('ATGATGATGATGATGATG', 'ATGATG---ATGATGATG', gap_placement_score=gps)
         assert ref_out == 'ATGATGATGATGATGATG'
         assert seq_out == 'ATGATG---ATGATGATG'
 
@@ -383,9 +373,7 @@ class TestGapPlacementScore:
             REFGAP: {},
             SEQGAP: {(7, 0): -100},
         }
-        ref_out, seq_out = run_codon_align(
-            'ATGATGATGATGATGATG', 'ATGATG---ATGATGATG', gap_placement_score=gps
-        )
+        ref_out, seq_out = run_codon_align('ATGATGATGATGATGATG', 'ATGATG---ATGATGATG', gap_placement_score=gps)
         assert ref_out == 'ATGATGATGATGATGATG'
         assert seq_out == '---ATGATGATGATGATG'
 
@@ -397,16 +385,12 @@ class TestGapPlacementScore:
 
 class TestWindowSize:
     def test_small_window(self) -> None:
-        ref_out, seq_out = run_codon_align(
-            'ATGATGATGATGATGATG', 'ATGATG---ATGATGATG', window_size=1
-        )
+        ref_out, seq_out = run_codon_align('ATGATGATGATGATGATG', 'ATGATG---ATGATGATG', window_size=1)
         assert ref_out == 'ATGATGATGATGATGATG'
         assert seq_out == 'ATG---ATGATGATGATG'
 
     def test_large_window(self) -> None:
-        ref_out, seq_out = run_codon_align(
-            'ATGATGATGATGATGATG', 'ATGATG---ATGATGATG', window_size=50
-        )
+        ref_out, seq_out = run_codon_align('ATGATGATGATGATGATG', 'ATGATG---ATGATGATG', window_size=50)
         assert ref_out == 'ATGATGATGATGATGATG'
         assert seq_out == '---ATGATGATGATGATG'
 
@@ -494,9 +478,7 @@ class TestFrameshiftCorrection:
 
     def test_3bp_ins_shifted_plus1(self) -> None:
         """3bp insertion with ref gap shifted +1 off boundary."""
-        ref_out, seq_out = run_codon_align(
-            'ATGC---CTGAATGCTGTAAG', 'ATGCAAACTGAATGCTGTAAG'
-        )
+        ref_out, seq_out = run_codon_align('ATGC---CTGAATGCTGTAAG', 'ATGCAAACTGAATGCTGTAAG')
         assert ref_out == 'ATG---CCTGAATGCTGTAAG'
         assert seq_out == 'ATGCAAACTGAATGCTGTAAG'
 
@@ -609,25 +591,19 @@ class TestGapAdjacentToMismatch:
 class TestLongDeletions:
     def test_9bp_deletion_on_boundary(self) -> None:
         """9bp (3-codon) deletion already on boundary."""
-        ref_out, seq_out = run_codon_align(
-            LONG_REF, 'ATG---------TGTAAGTTTGCATATCAGACTGTT'
-        )
+        ref_out, seq_out = run_codon_align(LONG_REF, 'ATG---------TGTAAGTTTGCATATCAGACTGTT')
         assert ref_out == 'ATGCCTGAATGCTGTAAGTTTGCATATCAGACTGTT'
         assert seq_out == 'ATG---------TGTAAGTTTGCATATCAGACTGTT'
 
     def test_12bp_deletion_on_boundary(self) -> None:
         """12bp (4-codon) deletion."""
-        ref_out, seq_out = run_codon_align(
-            LONG_REF, 'ATG------------AAGTTTGCATATCAGACTGTT'
-        )
+        ref_out, seq_out = run_codon_align(LONG_REF, 'ATG------------AAGTTTGCATATCAGACTGTT')
         assert ref_out == 'ATGCCTGAATGCTGTAAGTTTGCATATCAGACTGTT'
         assert seq_out == '------------ATGAAGTTTGCATATCAGACTGTT'
 
     def test_9bp_deletion_off_boundary(self) -> None:
         """9bp deletion shifted +1 off codon boundary."""
-        ref_out, seq_out = run_codon_align(
-            LONG_REF, 'ATGC---------GTAAGTTTGCATATCAGACTGTT'
-        )
+        ref_out, seq_out = run_codon_align(LONG_REF, 'ATGC---------GTAAGTTTGCATATCAGACTGTT')
         assert ref_out == 'ATGCCTGAATGCTGTAAGTTTGCATATCAGACTGTT'
         assert seq_out == 'ATGCGT---------AAGTTTGCATATCAGACTGTT'
 
@@ -654,9 +630,7 @@ class TestMixedInsDelSameWindow:
 
     def test_unequal_ins_del(self) -> None:
         """Ref has 3bp gap, seq has 6bp gap → net 3bp deletion."""
-        ref_out, seq_out = run_codon_align(
-            'ATG---CCTGAATGCTGTAAG', 'ATGCCTGAATGC------AAG'
-        )
+        ref_out, seq_out = run_codon_align('ATG---CCTGAATGCTGTAAG', 'ATGCCTGAATGC------AAG')
         assert ref_out == 'ATGCCTGAATGCTGTAAG'
         assert seq_out == 'ATGCCTGAATGC---AAG'
 
@@ -673,9 +647,7 @@ class TestGapPlacementScoreWithFrameshift:
             REFGAP: {},
             SEQGAP: {(4, 0): 100},
         }
-        ref_out, seq_out = run_codon_align(
-            HETERO, 'ATGCC---ATGCTGTAAG', gap_placement_score=gps
-        )
+        ref_out, seq_out = run_codon_align(HETERO, 'ATGCC---ATGCTGTAAG', gap_placement_score=gps)
         assert ref_out == 'ATGCCTGAATGCTGTAAG'
         assert seq_out == 'ATG---CCATGCTGTAAG'
 
@@ -685,9 +657,7 @@ class TestGapPlacementScoreWithFrameshift:
             REFGAP: {},
             SEQGAP: {(4, 0): -100},
         }
-        ref_out, seq_out = run_codon_align(
-            HETERO, 'ATGCC---ATGCTGTAAG', gap_placement_score=gps
-        )
+        ref_out, seq_out = run_codon_align(HETERO, 'ATGCC---ATGCTGTAAG', gap_placement_score=gps)
         assert ref_out == 'ATGCCTGAATGCTGTAAG'
         assert seq_out == 'ATGCCA---TGCTGTAAG'
 
@@ -697,9 +667,7 @@ class TestGapPlacementScoreWithFrameshift:
             REFGAP: {},
             SEQGAP: {(4, 3): 100, (4, 0): -100},
         }
-        ref_out, seq_out = run_codon_align(
-            HETERO, 'ATGCCT---GCTGTAAG', gap_placement_score=gps
-        )
+        ref_out, seq_out = run_codon_align(HETERO, 'ATGCCT---GCTGTAAG', gap_placement_score=gps)
         assert ref_out == 'ATGCCTGAATGCTGTAAG'
         assert seq_out == 'ATG---CCTGCTGTAAG'
 
@@ -709,9 +677,7 @@ class TestGapPlacementScoreWithFrameshift:
             REFGAP: {},
             SEQGAP: {(4, 0): 100, (10, 0): -100},
         }
-        ref_out, seq_out = run_codon_align(
-            HETERO, 'ATGCCT---GCTGTAAG', gap_placement_score=gps
-        )
+        ref_out, seq_out = run_codon_align(HETERO, 'ATGCCT---GCTGTAAG', gap_placement_score=gps)
         assert ref_out == 'ATGCCTGAATGCTGTAAG'
         assert seq_out == 'ATG---CCTGCTGTAAG'
 

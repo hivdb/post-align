@@ -64,9 +64,7 @@ class Modifier:
         ):
             # special case compress modifier: two slice + join
             slicetuples = self.slicetuples + other.slicetuples
-            modtext = 'join({})'.format(
-                ','.join('{}..{}'.format(*st) for st in slicetuples)
-            )
+            modtext = 'join({})'.format(','.join('{}..{}'.format(*st) for st in slicetuples))
             merged = Modifier(modtext, slicetuples=slicetuples)
             parent: Modifier | None = self.parent_mods[0]()
             if parent:
@@ -87,23 +85,17 @@ class Modifier:
 
 
 class ModifierLinkedList:
-    def __init__(
-        self: 'ModifierLinkedList', last_modifier: Modifier | None = None
-    ) -> None:
+    def __init__(self: 'ModifierLinkedList', last_modifier: Modifier | None = None) -> None:
         if last_modifier is None:
             last_modifier = Modifier('root()')
         self._last_modifier = last_modifier
 
-    def push(
-        self: 'ModifierLinkedList', modtext: str, **kw: Any
-    ) -> 'ModifierLinkedList':
+    def push(self: 'ModifierLinkedList', modtext: str, **kw: Any) -> 'ModifierLinkedList':
         modifier: Modifier = Modifier(modtext, **kw)
         self._last_modifier.add_child_mod(modifier)
         return ModifierLinkedList(modifier)
 
-    def replace_last(
-        self: 'ModifierLinkedList', modtext: str, **kw: Any
-    ) -> 'ModifierLinkedList':
+    def replace_last(self: 'ModifierLinkedList', modtext: str, **kw: Any) -> 'ModifierLinkedList':
         parent_ref: weakref.ref[Modifier]
         modifier: Modifier = Modifier(modtext, **kw)
         last_modifier: Modifier = self._last_modifier
@@ -118,9 +110,7 @@ class ModifierLinkedList:
     def last_modifier(self: 'ModifierLinkedList') -> Modifier:
         return self._last_modifier
 
-    def __add__(
-        self: 'ModifierLinkedList', other: 'ModifierLinkedList'
-    ) -> 'ModifierLinkedList':
+    def __add__(self: 'ModifierLinkedList', other: 'ModifierLinkedList') -> 'ModifierLinkedList':
         if not isinstance(other, ModifierLinkedList):
             raise TypeError(
                 f'unsupported operand type(s) for +: {self.__class__.__name__!r} and {other.__class__.__name__!r}'

@@ -1,11 +1,11 @@
 import re
 from collections.abc import Generator
-from typing import Any, Generic, TypeVar, Union
+from typing import Generic, TypeVar, Union
 
-from ._sequence import SKIP_VALIDATION, sanitize_sequence
+from ._sequence import SKIP_VALIDATION, _SkipValidationSentinel, sanitize_sequence
 from .aa_position import AAPosition
 from .modifier import ModifierLinkedList
-from .na_position import NAPosition
+from .na_position import NAPosition, NAPositionList
 
 GAP_CHARS = '.-'
 GAP_PATTERN = re.compile(r'^[.-]+$')
@@ -17,7 +17,7 @@ Position = TypeVar('Position', NAPosition, AAPosition)
 class Sequence(Generic[Position]):  # noqa: UP046
     header: str
     description: str
-    seqtext: list[Position]
+    seqtext: list[Position] | NAPositionList
     seqid: int
     seqtype: type[Position]
     abs_seqstart: int
@@ -28,17 +28,18 @@ class Sequence(Generic[Position]):  # noqa: UP046
         *,
         header: str,
         description: str,
-        seqtext: list[Position],
+        seqtext: list[Position] | NAPositionList,
         seqid: int,
         seqtype: type[Position],
         abs_seqstart: int,
         modifiers_: ModifierLinkedList | None = None,
-        skip_invalid: bool | object = True,
+        skip_invalid: bool | _SkipValidationSentinel = True,
     ) -> None:
-        one: Position  # noqa: F842
-
         if skip_invalid is not SKIP_VALIDATION:
             seqtext = sanitize_sequence(seqtext, seqtype, header, skip_invalid)
+
+        if isinstance(seqtext, list) and seqtype is NAPosition:
+            seqtext = NAPositionList.from_list(seqtext)  # type: ignore[arg-type]
 
         self.header = header
         self.description = description
@@ -50,8 +51,10 @@ class Sequence(Generic[Position]):  # noqa: UP046
 
     @property
     def seqtext_as_str(self: 'Sequence') -> str:
-        seqtype: type[Position] = self.seqtype
-        return seqtype.as_str(self.seqtext)
+        st = self.seqtext
+        if isinstance(st, NAPositionList):
+            return st.as_str()
+        raise NotImplementedError('AA seqtext_as_str is not yet supported')
 
     @property
     def headerdesc(self: 'Sequence') -> str:
@@ -67,13 +70,10 @@ class Sequence(Generic[Position]):  # noqa: UP046
         else:
             return self.modifiers_
 
-    def __getitem__(
-        self: 'Sequence', index: int | slice
-    ) -> Union[Position, 'Sequence']:
-        seqtext: list[Position] = self.seqtext
+    def __getitem__(self: 'Sequence', index: int | slice) -> Union[Position, 'Sequence']:
+        seqtext = self.seqtext
         if isinstance(index, slice):
             seqtext = seqtext[index]
-            seqtype: type[Position] = self.seqtype
             start: int
             end: int
             slice_remain_len: int
@@ -105,21 +105,19 @@ class Sequence(Generic[Position]):  # noqa: UP046
                 if len(slicetuples) == 1:
                     modtext = 'slice({},{})'.format(*slicetuples[0])
                 else:
-                    modtext = 'join({})'.format(
-                        ','.join('{}..{}'.format(*stuple) for stuple in slicetuples)
-                    )
+                    modtext = 'join({})'.format(','.join('{}..{}'.format(*stuple) for stuple in slicetuples))
             else:
                 raise ValueError(f'step slicing is not supported: {index!r}')
             if replace_flag:
-                modifiers = self.modifiers.replace_last(
-                    modtext, slicetuples=slicetuples
-                )
+                modifiers = self.modifiers.replace_last(modtext, slicetuples=slicetuples)
             else:
                 modifiers = self.modifiers.push(modtext, slicetuples=slicetuples)
 
             abs_seqstart = self.abs_seqstart + start
-            for _gap in GAP_CHARS:
-                abs_seqstart -= seqtype.count_gaps(self.seqtext[:start])
+            st_prefix = self.seqtext[:start]
+            if isinstance(st_prefix, NAPositionList):
+                abs_seqstart -= st_prefix.count_gaps()
+            # else: AA path not yet supported
 
             return Sequence(
                 header=self.header,
@@ -132,7 +130,9 @@ class Sequence(Generic[Position]):  # noqa: UP046
                 skip_invalid=SKIP_VALIDATION,
             )
         else:
-            return seqtext[index]
+            # seqtext is list[Position] | NAPositionList; both return NAPosition|AAPosition for int index.
+            # mypy can't narrow the TypeVar union per-branch, so we suppress.
+            return seqtext[index]  # type: ignore[return-value]
 
     def __add__(self: 'Sequence', other: 'Sequence') -> 'Sequence':
         if not isinstance(other, Sequence):
@@ -141,13 +141,20 @@ class Sequence(Generic[Position]):  # noqa: UP046
             )
         if self.seqid != other.seqid:
             raise ValueError(
-                'concat two sequences with different seqid is disallowed: '
-                f'{self.header!r} and {other.header!r}'
+                f'concat two sequences with different seqid is disallowed: {self.header!r} and {other.header!r}'
             )
+        self_st = self.seqtext
+        other_st = other.seqtext
+        if isinstance(self_st, NAPositionList) and isinstance(other_st, NAPositionList):
+            combined: list[Position] | NAPositionList = self_st + other_st
+        elif isinstance(self_st, list) and isinstance(other_st, list):
+            combined = self_st + other_st
+        else:
+            raise TypeError('cannot concatenate different seqtext types')
         return type(self)(
             header=self.header,
             description=self.description,
-            seqtext=self.seqtext + other.seqtext,
+            seqtext=combined,
             seqid=self.seqid,
             seqtype=self.seqtype,
             modifiers_=self.modifiers + other.modifiers,
@@ -163,10 +170,10 @@ class Sequence(Generic[Position]):  # noqa: UP046
 
     def push_seqtext(
         self: 'Sequence',
-        seqtext: list[Position],
+        seqtext: list[Position] | NAPositionList,
         modtext: str,
         start_offset: int,
-        **kw: Any,
+        **kw: list[tuple[int, int]],
     ) -> 'Sequence':
         """Modify seqtext and push modifier forward
 
@@ -190,10 +197,10 @@ class Sequence(Generic[Position]):  # noqa: UP046
 
     def replace_seqtext(
         self: 'Sequence',
-        seqtext: list[Position],
+        seqtext: list[Position] | NAPositionList,
         modtext: str,
         start_offset: int,
-        **kw: Any,
+        **kw: list[tuple[int, int]],
     ) -> 'Sequence':
         """Modify seqtext and replace last modifier
 

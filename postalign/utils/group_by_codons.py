@@ -1,7 +1,7 @@
-
 import cython  # type: ignore
 
 from ..models import NAPosition
+from ..models.na_position import NAPositionList
 
 
 @cython.ccall
@@ -51,8 +51,8 @@ def find_codon_trim_slice(codons: list[list[NAPosition]]) -> slice:
 @cython.ccall
 @cython.returns(list)
 def group_by_gene_codons(
-    refnas: list[NAPosition],
-    seqnas: list[NAPosition],
+    refnas: NAPositionList,
+    seqnas: NAPositionList,
     gene_range_tuples: list[tuple[str, list[tuple[int, int]]]],
 ) -> list[tuple[str, list[list[NAPosition]], list[list[NAPosition]]]]:
     gene: str
@@ -63,9 +63,10 @@ def group_by_gene_codons(
         refcodons = []
         seqcodons = []
         for refstart, refend in ranges:
-            idxstart, idxend = NAPosition.posrange2indexrange(refnas, refstart, refend)
+            idxstart, idxend = refnas.posrange2indexrange(refstart, refend)
             partial_refcodons, partial_seqcodons = group_by_codons(
-                refnas[idxstart:idxend], seqnas[idxstart:idxend]
+                list(refnas[idxstart:idxend]),
+                list(seqnas[idxstart:idxend]),
             )
             refcodons.extend(partial_refcodons)
             seqcodons.extend(partial_seqcodons)

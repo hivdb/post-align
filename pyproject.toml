@@ -55,6 +55,7 @@ postalign = ["py.typed"]
 
 [tool.mypy]
 python_version = "3.13"
+mypy_path = "stubs"
 warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true

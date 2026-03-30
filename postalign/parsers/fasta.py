@@ -1,14 +1,12 @@
 from collections.abc import Generator, Iterable
 from typing import TextIO
 
-from ..models import Position, Sequence
+from ..models import NAPositionList, Position, Sequence
 
 GAP_CHARS = b'.-'
 
 
-def load(
-    fp: TextIO, seqtype: type[Position], *, remove_gaps: bool = False
-) -> Generator[Sequence]:
+def load(fp: TextIO, seqtype: type[Position], *, remove_gaps: bool = False) -> Generator[Sequence]:
     header: str = ''
     curseq: bytearray = bytearray()
     seqid: int = 0
@@ -27,7 +25,7 @@ def load(
         return Sequence(
             header=headerdesc[0],
             description=description,
-            seqtext=seqtype.init_from_bytes(curseq),
+            seqtext=NAPositionList.from_bytes(bytes(curseq)),
             seqid=seqid,
             seqtype=seqtype,
             abs_seqstart=0,

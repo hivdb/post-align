@@ -5,16 +5,17 @@ from typing import TextIO
 
 from pafpy import PafRecord, Strand  # type: ignore
 
-from ..models import Message, MessageLevel, Position, PositionFlag, RefSeqPair, Sequence
+from ..models import Message, MessageLevel, NAPosition, PositionFlag, RefSeqPair, Sequence
+from ..models.sequence import Position
 from ..utils.cigar import CIGAR
 from . import fasta
 
 
 def insert_unaligned_region(
-    reftext: list[Position],
-    seqtext: list[Position],
-    orig_seqtext: list[Position],
-    seqtype: type[Position],
+    reftext: list[NAPosition],
+    seqtext: list[NAPosition],
+    orig_seqtext: list[NAPosition],
+    seqtype: type[NAPosition],
     align1_ref_end: int,
     align1_seq_end: int,
     align2_ref_start: int,
@@ -47,14 +48,10 @@ def insert_unaligned_region(
     if unaligned_ref_size == 0 and unaligned_seq_size == 0:
         return
 
-    reftext[align1_ref_end + offset : align1_ref_end + offset] = seqtype.init_gaps(
-        unaligned_seq_size
-    )
+    reftext[align1_ref_end + offset : align1_ref_end + offset] = NAPosition.init_gaps(unaligned_seq_size)
 
-    unaligneds: list[Position] = deepcopy(
-        orig_seqtext[align1_seq_end : align1_seq_end + unaligned_seq_size]
-    )
-    seqtype.set_flag(unaligneds, PositionFlag.UNALIGNED)
+    unaligneds: list[NAPosition] = deepcopy(orig_seqtext[align1_seq_end : align1_seq_end + unaligned_seq_size])
+    NAPosition.set_flag(unaligneds, PositionFlag.UNALIGNED)
 
     seqtext[align1_ref_end + offset : align1_ref_end + offset] = unaligneds
 
@@ -73,9 +70,7 @@ def load(
     seq_end: int
     cigar_text: str
     refseq: Sequence = next(fasta.load(reference, seqtype, remove_gaps=True))
-    seqs: Iterable[Sequence] = fasta.load(
-        seqs_prior_alignment, seqtype, remove_gaps=True
-    )
+    seqs: Iterable[Sequence] = fasta.load(seqs_prior_alignment, seqtype, remove_gaps=True)
 
     pafstr_iter = (pafstr.strip() for pafstr in paffp)
     pafrec_iter = (PafRecord.from_str(pafstr) for pafstr in pafstr_iter if pafstr)
@@ -110,8 +105,8 @@ def load(
                 seq.push_seqtext([], modtext='error()', start_offset=0),
             )
             continue
-        final_reftext: list[Position] = refseq.seqtext[:]
-        final_seqtext: list[Position] = seqtype.init_gaps(len(final_reftext))
+        final_reftext: list[NAPosition] = list(refseq.seqtext)
+        final_seqtext: list[NAPosition] = NAPosition.init_gaps(len(final_reftext))
         prev_ref_start: int = len(refseq)
         prev_seq_start: int = len(seq)
         ref_paf_params: list[str] = []
@@ -180,22 +175,23 @@ def load(
             scanned_ref_range |= ref_range
             scanned_seq_range |= seq_range
 
-            reftext: list[Position] = refseq.seqtext
-            seqtext: list[Position] = seq.seqtext
+            reftext: list[NAPosition] = list(refseq.seqtext)
+            seqtext: list[NAPosition] = list(seq.seqtext)
 
             reftext, seqtext = cigar_obj.get_alignment(reftext, seqtext, seqtype)
 
             if is_shrunken:
-                seq_end = seq_start + seqtype.count_nongaps(seqtext)
+                seq_end = seq_start + NAPosition.count_nongaps(seqtext)
 
             ref_paf_params.append(f'{ref_start},{ref_end},{cigar_text}')
             seq_paf_params.append(f'{seq_start},{seq_end},{cigar_text}')
 
+            orig_seqtext: list[NAPosition] = list(seq.seqtext)
             insert_unaligned_region(
                 final_reftext,
                 final_seqtext,
-                seq.seqtext,
-                seqtype,
+                orig_seqtext,
+                NAPosition,
                 ref_end,
                 seq_end,
                 prev_ref_start,
@@ -211,8 +207,8 @@ def load(
         insert_unaligned_region(
             final_reftext,
             final_seqtext,
-            seq.seqtext,
-            seqtype,
+            orig_seqtext,
+            NAPosition,
             0,
             0,
             prev_ref_start,
@@ -228,12 +224,8 @@ def load(
             # Mask positions that has been aligned but repeated used as
             # unaligned. This is typically happened when sequence was
             # incorrectly concatenated. e.g. RT + PR
-            if (
-                pos.flag & PositionFlag.UNALIGNED
-                and pos.pos > -1
-                and pos.pos in aligned_positions
-            ):
-                final_seqtext[idx] = seqtype.init_gaps(1)[0]
+            if pos.flag & PositionFlag.UNALIGNED and pos.pos > -1 and pos.pos in aligned_positions:
+                final_seqtext[idx] = NAPosition.init_gaps(1)[0]
 
         yield (
             refseq.push_seqtext(

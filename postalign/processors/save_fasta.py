@@ -19,12 +19,8 @@ from ..processor import Processor, output_processor
     default=True,
     help=('Include/exclude modification steps (modifiers) in sequence headers'),
 )
-@click.option(
-    '--pairwise/--msa', default=False, help='Save alignments in pairwise or MSA form'
-)
-def save_fasta(
-    preserve_order: bool, modifiers: bool, pairwise: bool
-) -> Processor[Iterable[str]]:
+@click.option('--pairwise/--msa', default=False, help='Save alignments in pairwise or MSA form')
+def save_fasta(preserve_order: bool, modifiers: bool, pairwise: bool) -> Processor[Iterable[str]]:
     """Save prior post-alignment results as a FASTA file"""
 
     @output_processor('save-fasta')
@@ -34,11 +30,7 @@ def save_fasta(
         refseq: Sequence
         seq: Sequence
         for idx, (refseq, seq) in enumerate(iterator):
-            if (
-                pairwise
-                or (not preserve_order and idx == 0)
-                or (preserve_order and refseq.seqid + 1 == seq.seqid)
-            ):
+            if pairwise or (not preserve_order and idx == 0) or (preserve_order and refseq.seqid + 1 == seq.seqid):
                 if modifiers:
                     yield f'>{refseq.header_with_modifiers}\n'
                 else:

@@ -1,50 +1,50 @@
 import cython  # type: ignore
 
 from .aa_position import AAPosition
-from .na_position import NAPosition
+from .na_position import NAPosition, NAPositionList
 
-Position = NAPosition | AAPosition
+type Position = NAPosition | AAPosition
 
-SKIP_VALIDATION = object()
 
-VALID_NOTATIONS: dict[type[Position], set[int]] = {
-    NAPosition: set(b'ACGTUWSMKRYBDHVN.-')
-}
+class _SkipValidationSentinel:
+    """Sentinel type used to bypass sequence validation."""
+
+
+SKIP_VALIDATION = _SkipValidationSentinel()
+
+VALID_NOTATIONS: dict[type[NAPosition] | type[AAPosition], set[int]] = {NAPosition: set(b'ACGTUWSMKRYBDHVN.-')}
 
 
 @cython.ccall
-@cython.returns(list)
 def sanitize_sequence(
-    seqtext: list[Position],
-    seqtype: type[Position],
+    seqtext: list[NAPosition] | list[AAPosition] | NAPositionList,
+    seqtype: type[NAPosition] | type[AAPosition],
     header: str,
-    skip_invalid: bool | object,
-) -> list[Position]:
-    if seqtype == AAPosition or any(isinstance(one, AAPosition) for one in seqtext):
+    skip_invalid: bool | _SkipValidationSentinel,
+) -> list[NAPosition] | list[AAPosition] | NAPositionList:
+    if seqtype == AAPosition:
         raise NotImplementedError('Amino acid is not yet supported')
 
-    if seqtype != NAPosition and not all(
-        isinstance(one, NAPosition) for one in seqtext
-    ):
-        raise ValueError(
-            'seqtext must be a list of NAPosition instances '
-            "when seqtype is 'NAPosition'"
-        )
+    if isinstance(seqtext, NAPositionList):
+        # NAPositionList is inherently all-NAPosition; just validate notations
+        pass
+    elif not all(isinstance(one, NAPosition) for one in seqtext):
+        raise ValueError("seqtext must be a list of NAPosition instances when seqtype is 'NAPosition'")
 
     valid_notations: set[int] = VALID_NOTATIONS[seqtype]
-    valids: list[Position] = []
+    valids: list[NAPosition] = []
     invalids: set[int] = set()
     for one in seqtext:
-        if one.notation in valid_notations:
-            valids.append(one)
-        else:
-            invalids.add(one.notation)
+        if isinstance(one, NAPosition):
+            if one.notation in valid_notations:
+                valids.append(one)
+            else:
+                invalids.add(one.notation)
     if invalids and skip_invalid:
-        seqtext = valids
+        seqtext = NAPositionList.from_list(valids) if isinstance(seqtext, NAPositionList) else valids
     elif invalids:
         raise ValueError(
-            'sequence {} contains invalid notation(s) ({})'
-            'while skip_invalid=False'.format(
+            'sequence {} contains invalid notation(s) ({})while skip_invalid=False'.format(
                 header, str(bytes(sorted(invalids)), 'ASCII')
             )
         )

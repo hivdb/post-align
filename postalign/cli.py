@@ -11,9 +11,7 @@ from .processor import Processor
 INPUT_FORMAT = ['MSA', 'PAF', 'MINIMAP2']
 
 
-def reference_callback(
-    ctx: click.Context, param: click.Option, value: str
-) -> TextIO | str:
+def reference_callback(ctx: click.Context, param: click.Option, value: str) -> TextIO | str:
     """Pre-process -r/--reference input"""
     if not param.name:
         raise click.BadParameter('Internal error (reference_callback:1)', ctx, param)
@@ -30,34 +28,27 @@ def reference_callback(
         if alignment_format != 'MSA':
             raise click.BadOptionUsage(
                 param.name,
-                '-r/--reference must provided as a file path '
-                f'if alignment is {alignment_format!r}',
+                f'-r/--reference must provided as a file path if alignment is {alignment_format!r}',
                 ctx,
             ) from exc
     return retvalue
 
 
-def seqs_prior_alignment_callback(
-    ctx: click.Context, param: click.Option, value: TextIO | None
-) -> TextIO | None:
+def seqs_prior_alignment_callback(ctx: click.Context, param: click.Option, value: TextIO | None) -> TextIO | None:
     """Pre-process -p/--seqs-prior-alignment input"""
     if not param.name:
-        raise click.BadParameter(
-            'Internal error (seqs_prior_alignment_callback:1)', ctx, param
-        )
+        raise click.BadParameter('Internal error (seqs_prior_alignment_callback:1)', ctx, param)
     alignment_format: str = ctx.params['alignment_format']
     if alignment_format in ('PAF',):
         if not value:
             raise click.BadOptionUsage(
                 param.name,
-                '-p/--seqs-prior-alignment must provided '
-                f'for alignment format {alignment_format!r}',
+                f'-p/--seqs-prior-alignment must provided for alignment format {alignment_format!r}',
             )
         return value
     elif value:
         click.echo(
-            'Warning: ignore -p/--seqs-prior-alignment for '
-            f'alignment format {alignment_format!r}',
+            f'Warning: ignore -p/--seqs-prior-alignment for alignment format {alignment_format!r}',
             err=True,
         )
     return None
@@ -107,9 +98,7 @@ def seqs_prior_alignment_callback(
     help='The input sequences are nucleotides or amino acids',
 )
 @click.option('-V/-q', '--verbose/--quiet', default=True, help='Verbose/quiet output')
-@click.option(
-    '--enable-profile/--disable-profile', default=False, help='Enable cProfile'
-)
+@click.option('--enable-profile/--disable-profile', default=False, help='Enable cProfile')
 @click.option(
     '--minimap2-opts',
     type=str,
@@ -144,18 +133,14 @@ def check_processors(processors: list[Processor]) -> None:
         raise click.ClickException('No processor is specified')
     last_processor: Processor = processors[-1]
     if not last_processor.is_output_command:
-        raise click.ClickException(
-            f'The last pipeline command {last_processor.command_name!r} is not an output method'
-        )
+        raise click.ClickException(f'The last pipeline command {last_processor.command_name!r} is not an output method')
     extra_output_commands: list[str] = []
     for processor in processors[:-1]:
         if processor.is_output_command:
             extra_output_commands.append(processor.command_name)
     if extra_output_commands:
         raise click.ClickException(
-            'Following pipeline command(s) are output methods: {}'.format(
-                ', '.join(extra_output_commands)
-            )
+            'Following pipeline command(s) are output methods: {}'.format(', '.join(extra_output_commands))
         )
 
 
@@ -178,17 +163,13 @@ def process_pipeline(
     messages: list[Message] = []
 
     if not nucleotides:
-        raise click.ClickException(
-            'Amino acid sequences is not yet supported (--amino-acids)'
-        )
+        raise click.ClickException('Amino acid sequences is not yet supported (--amino-acids)')
 
     if isinstance(reference, str):
         if alignment_format == 'MSA':
             iterator = msa.load(input_alignment, reference, seqtype)
     elif alignment_format == 'PAF' and seqs_prior_alignment:
-        iterator = paf.load(
-            input_alignment, seqs_prior_alignment, reference, seqtype, messages
-        )
+        iterator = paf.load(input_alignment, seqs_prior_alignment, reference, seqtype, messages)
     elif alignment_format == 'MINIMAP2':
         minimap2_execute = ['minimap2']
         if minimap2_opts:
@@ -201,9 +182,7 @@ def process_pipeline(
             minimap2_execute=minimap2_execute,
         )
     else:
-        raise click.ClickException(
-            f'Unsupport alignment format: {alignment_format}'
-        )
+        raise click.ClickException(f'Unsupport alignment format: {alignment_format}')
 
     if enable_profile:
         import cProfile

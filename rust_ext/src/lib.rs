@@ -1,6 +1,7 @@
 //! postalign_rs — Rust core for codon alignment via PyO3.
 
 mod align;
+mod position;
 mod scoring;
 
 use pyo3::prelude::*;
@@ -426,6 +427,33 @@ fn align_result_to_py(py: Python<'_>, res: Option<AlignResult>) -> PyResult<PyOb
     }
 }
 
+/// Convert AlignResult to Python tuple with NAPositionList output.
+///
+/// Returns `None` or `(idx_start, idx_end, ref_NAPositionList, seq_NAPositionList)`.
+fn align_result_to_naposlist(py: Python<'_>, res: Option<AlignResult>) -> PyResult<PyObject> {
+    match res {
+        None => Ok(py.None()),
+        Some(r) => {
+            let ref_list = position::NAPositionList {
+                notations: r.out_ref.iter().map(|n| n.notation).collect(),
+                positions: r.out_ref.iter().map(|n| n.pos).collect(),
+                flags: r.out_ref.iter().map(|n| n.flag).collect(),
+            };
+            let seq_list = position::NAPositionList {
+                notations: r.out_seq.iter().map(|n| n.notation).collect(),
+                positions: r.out_seq.iter().map(|n| n.pos).collect(),
+                flags: r.out_seq.iter().map(|n| n.flag).collect(),
+            };
+            Ok(PyTuple::new(py, &[
+                r.idx_start.into_pyobject(py)?.into_any(),
+                r.idx_end.into_pyobject(py)?.into_any(),
+                ref_list.into_pyobject(py)?.into_any(),
+                seq_list.into_pyobject(py)?.into_any(),
+            ])?.into())
+        }
+    }
+}
+
 /// Full codon alignment in Rust for a single sequence pair.
 ///
 /// Performs boundary detection (equivalent to Python's
@@ -455,6 +483,32 @@ fn codon_align_full(
         ref_start, ref_end,
     );
     align_result_to_py(py, result)
+}
+
+/// Full codon alignment accepting NAPositionList directly.
+///
+/// Zero-copy input: reads `.notations`, `.positions`, `.flags` slices
+/// from the NAPositionList objects without marshaling.
+/// Returns `None` or `(idx_start, idx_end, ref_NAPositionList, seq_NAPositionList)`.
+#[pyfunction]
+fn codon_align_full_v2(
+    py: Python<'_>,
+    ref_nas: PyRef<'_, position::NAPositionList>,
+    seq_nas: PyRef<'_, position::NAPositionList>,
+    min_gap_distance: i32,
+    window_size: i32,
+    gap_placement_score: &Bound<'_, PyDict>,
+    ref_start: i32,
+    ref_end: i32,
+) -> PyResult<PyObject> {
+    let gps = parse_gap_placement_score(gap_placement_score)?;
+    let result = codon_align_core(
+        &ref_nas.notations, &ref_nas.positions, &ref_nas.flags,
+        &seq_nas.notations, &seq_nas.positions, &seq_nas.flags,
+        min_gap_distance, window_size, &gps,
+        ref_start, ref_end,
+    );
+    align_result_to_naposlist(py, result)
 }
 
 // ---------------------------------------------------------------------------
@@ -537,9 +591,15 @@ fn codon_align_batch(
 /// Python module definition.
 #[pymodule]
 fn postalign_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<position::NAPosition>()?;
+    m.add_class::<position::NAPositionList>()?;
+    m.add_class::<position::NAPositionListIter>()?;
+    m.add_class::<position::AAPosition>()?;
+    m.add_function(wrap_pyfunction!(position::enumerate_seq_pos, m)?)?;
     m.add_function(wrap_pyfunction!(realign_gaps, m)?)?;
     m.add_function(wrap_pyfunction!(realign_gaps_optimized, m)?)?;
     m.add_function(wrap_pyfunction!(codon_align_full, m)?)?;
+    m.add_function(wrap_pyfunction!(codon_align_full_v2, m)?)?;
     m.add_function(wrap_pyfunction!(codon_align_batch, m)?)?;
     Ok(())
 }

@@ -53,7 +53,7 @@ def make_sequence(
 
 def seq_to_str(seq: Sequence) -> str:
     """Extract the sequence string from a Sequence object."""
-    return NAPosition.as_str(seq.seqtext)
+    return seq.seqtext.as_str()
 
 
 def make_run_codon_align(
@@ -78,7 +78,7 @@ def make_run_codon_align(
         seq = make_sequence(seq_str, header='seq', seqid=0)
 
         if ref_end <= 0:
-            ref_end = NAPosition.max_pos(refseq.seqtext)
+            ref_end = refseq.seqtext.max_pos()
 
         ref_out, seq_out = codon_align_fn(
             refseq,

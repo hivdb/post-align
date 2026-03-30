@@ -33,7 +33,7 @@ import click
 import cython  # type: ignore
 
 from ..cli import cli
-from ..models import NAPosition, RefSeqPair, Sequence
+from ..models import NAPosition, NAPositionList, RefSeqPair, Sequence
 from ..processor import Processor, intermediate_processor
 from ..utils import find_codon_trim_slice, group_by_codons
 from ..utils.blosum62 import blosum62_score
@@ -47,9 +47,7 @@ SEQGAP: int = 0b10
 LEFT: int = 0b00
 RIGHT: int = 0b01
 
-GAP_PLACEMENT_SCORE_PATTERN: re.Pattern = re.compile(
-    r'^(\d+)(?:/(\d+))?(ins|del):(-?\d+)$'
-)
+GAP_PLACEMENT_SCORE_PATTERN: re.Pattern = re.compile(r'^(\d+)(?:/(\d+))?(ins|del):(-?\d+)$')
 
 CodonPair = tuple[
     int,  # refpos0
@@ -91,9 +89,7 @@ def extend_codons_until_gap(
     refcd: list[NAPosition]
     seqcd: list[NAPosition]
     endidx: int = len(ref_codons)
-    for idx, (refcd, seqcd) in enumerate(
-        zip(ref_codons, seq_codons, strict=False)
-    ):
+    for idx, (refcd, seqcd) in enumerate(zip(ref_codons, seq_codons, strict=False)):
         broken: bool = False
         for na in chain(refcd, seqcd):
             if na.is_gap:
@@ -113,9 +109,7 @@ def extend_codons_until_gap(
 @cython.cfunc
 @cython.inline
 @cython.returns(list)
-def find_windows_with_gap(
-    refnas: list[NAPosition], seqnas: list[NAPosition], min_gap_distance: int
-) -> list[slice]:
+def find_windows_with_gap(refnas: list[NAPosition], seqnas: list[NAPosition], min_gap_distance: int) -> list[slice]:
     """Return slices covering contiguous gap regions.
 
     Gaps separated by more than *min_gap_distance* non-gap positions
@@ -160,9 +154,7 @@ def move_gap_to_codon_end(codons: list[list[NAPosition]]) -> list[list[NAPositio
     """Move gaps to the end of each codon triple."""
     new_codons: list[list[NAPosition]] = []
     for codon in codons:
-        new_codons.append(
-            [na for na in codon if not na.is_gap] + [na for na in codon if na.is_gap]
-        )
+        new_codons.append([na for na in codon if not na.is_gap] + [na for na in codon if na.is_gap])
     return new_codons
 
 
@@ -265,9 +257,7 @@ def calc_match_score_precomputed(
 @cython.cfunc
 @cython.inline
 @cython.returns(list)
-def center_expand_positions(
-    center: int, scanstart: int, mynas_len: int, step: int
-) -> list[int]:
+def center_expand_positions(center: int, scanstart: int, mynas_len: int, step: int) -> list[int]:
     """Generate search positions in centre-expand order.
 
     Starting from *center* (snapped to the nearest *step*-aligned
@@ -373,9 +363,7 @@ def find_best_matches(
         if (is_start and idx == 0) or (is_end and idx + 3 > mynas_len):
             base_score = 0.0
         # D1: Use precomputed other_aas
-        score_val: float = calc_match_score_precomputed(
-            test_mynas, othernas, other_aas, base_score
-        )
+        score_val: float = calc_match_score_precomputed(test_mynas, othernas, other_aas, base_score)
         napos = mynas[idx - 1].pos if gap_type == REFGAP else othernas[idx].pos
         if (napos, gaplen) in gap_placement_score:
             score_val += gap_placement_score[(napos, gaplen)]
@@ -699,15 +687,13 @@ def codon_align(
     Returns:
         Updated ``(refseq, seq)`` pair with codon-aligned gaps.
     """
-    refnas: list[NAPosition] = refseq.seqtext
-    seqnas: list[NAPosition] = seq.seqtext
+    refnas: list[NAPosition] = list(refseq.seqtext)
+    seqnas: list[NAPosition] = list(seq.seqtext)
 
     seq_idx_start: int = 0
     seq_idx_end: int = len(seqnas)
 
-    ref_idx_start, ref_idx_end = NAPosition.posrange2indexrange(
-        refnas, ref_start, ref_end, include_boundary_gaps=True
-    )
+    ref_idx_start, ref_idx_end = NAPosition.posrange2indexrange(refnas, ref_start, ref_end, include_boundary_gaps=True)
 
     # Determine the application boundary
     # 1) follow user-specific reference boundary (ref_start, ref_end), and
@@ -753,12 +739,12 @@ def codon_align(
 
     # step 3: save "codon aligned" refseq and seq
     refseq = refseq.push_seqtext(
-        refseq.seqtext[:idx_start] + refnas + refseq.seqtext[idx_end:],
+        list(refseq.seqtext[:idx_start]) + refnas + list(refseq.seqtext[idx_end:]),
         f'codonalign({ref_start},{ref_end})',
         0,
     )
     seq = seq.push_seqtext(
-        seq.seqtext[:idx_start] + seqnas + seq.seqtext[idx_end:],
+        list(seq.seqtext[:idx_start]) + seqnas + list(seq.seqtext[idx_end:]),
         f'codonalign({ref_start},{ref_end})',
         0,
     )
@@ -796,14 +782,11 @@ def parse_gap_placement_score(value: str) -> dict[int, dict[tuple[int, int], int
             continue
         match: re.Match | None = GAP_PLACEMENT_SCORE_PATTERN.match(score_str)
         if not match:
-            raise ValueError(
-                'parse_gap_placement_score() is provided with an '
-                f'invalid argument value: {score_str!r}'
-            )
+            raise ValueError(f'parse_gap_placement_score() is provided with an invalid argument value: {score_str!r}')
         pos_start, pos_size, gap_type, gap_score = match.groups()
-        scores[REFGAP if gap_type == 'ins' else SEQGAP][
-            (int(pos_start), int(pos_size) if pos_size else 0)
-        ] = int(gap_score)
+        scores[REFGAP if gap_type == 'ins' else SEQGAP][(int(pos_start), int(pos_size) if pos_size else 0)] = int(
+            gap_score
+        )
     return scores
 
 
@@ -814,13 +797,9 @@ def gap_placement_score_callback(
 ) -> dict[int, dict[tuple[int, int], int]]:
     """Click callback that parses ``--gap-placement-score`` values."""
     if not param.name:
-        raise click.BadParameter(
-            'Internal error (gap_placement_score_callback:1)', ctx, param
-        )
+        raise click.BadParameter('Internal error (gap_placement_score_callback:1)', ctx, param)
     try:
-        result: dict[int, dict[tuple[int, int], int]] = parse_gap_placement_score(
-            ','.join(value)
-        )
+        result: dict[int, dict[tuple[int, int], int]] = parse_gap_placement_score(','.join(value))
         return result
     except ValueError as exp:
         raise click.BadOptionUsage(param.name, str(exp), ctx) from exp
@@ -836,10 +815,7 @@ def gap_placement_score_callback(
     '--min-gap-distance',
     type=int,
     default=30,
-    help=(
-        'Minimal NA gap distance of the output, gaps within the '
-        'minimal distance will be gathered into a single gap'
-    ),
+    help=('Minimal NA gap distance of the output, gaps within the minimal distance will be gathered into a single gap'),
 )
 @click.option(
     '--window-size',
@@ -906,13 +882,9 @@ def codon_alignment(
     (relative to ref. sequence) where the codon alignment should be applied.
     """
     if ref_start < 1:
-        raise click.ClickException(
-            f'argument <REF_START>:{ref_start} must be not less than 1'
-        )
+        raise click.ClickException(f'argument <REF_START>:{ref_start} must be not less than 1')
     if ref_end > 0 and ref_end - 2 < ref_start:
-        raise click.ClickException(
-            f'no enough codon between arguments <REF_START>:{ref_start} and <REF_END>:{ref_end}'
-        )
+        raise click.ClickException(f'no enough codon between arguments <REF_START>:{ref_start} and <REF_END>:{ref_end}')
 
     # Select backend implementation
     if backend == 'rust':
@@ -926,11 +898,9 @@ def codon_alignment(
         seq: Sequence
         for refseq, seq in iterator:
             if refseq.seqtype != NAPosition:
-                raise click.ClickException(
-                    'Codon alignment only applies to nucleotide sequences.'
-                )
+                raise click.ClickException('Codon alignment only applies to nucleotide sequences.')
 
-            seqnas: list[NAPosition] = refseq.seqtext
+            seqnas = refseq.seqtext
 
             if not seqnas:
                 # skip empty sequences
@@ -938,7 +908,8 @@ def codon_alignment(
             else:
                 my_ref_end: int = ref_end
                 if my_ref_end <= 0:
-                    my_ref_end = NAPosition.max_pos(seqnas)
+                    st = refseq.seqtext
+                    my_ref_end = st.max_pos() if isinstance(st, NAPositionList) else NAPosition.max_pos(list(st))
                 yield _align_fn(
                     refseq,
                     seq,

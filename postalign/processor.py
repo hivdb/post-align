@@ -24,9 +24,7 @@ class Processor(Generic[ReturnType]):  # noqa: UP046
         # https://github.com/python/mypy/issues/2427
         self._processor = processor
 
-    def __call__(
-        self, iterator: Iterable[RefSeqPair], messages: list[Message]
-    ) -> ReturnType:
+    def __call__(self, iterator: Iterable[RefSeqPair], messages: list[Message]) -> ReturnType:
         return self._processor(iterator, messages)  # type: ignore
 
 
@@ -53,9 +51,7 @@ def intermediate_processor(
 ]:
 
     def wrapper(
-        processor: Callable[
-            [Iterable[RefSeqPair], list[Message]], Iterable[RefSeqPair]
-        ],
+        processor: Callable[[Iterable[RefSeqPair], list[Message]], Iterable[RefSeqPair]],
     ) -> Processor[Iterable[RefSeqPair]]:
         return Processor(command_name, False, processor)
 

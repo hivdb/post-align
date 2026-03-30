@@ -131,22 +131,16 @@ def _translate_codon(
 
 @cython.ccall
 @cython.returns(bytes)
-def translate_codon(
-    nas: list[NAPosition], fs_as: bytes = b'X', del_as: bytes = b'-'
-) -> bytes:
+def translate_codon(nas: list[NAPosition], fs_as: bytes = b'X', del_as: bytes = b'-') -> bytes:
     nas = nas[:3]
     nas_bytes: bytes = NAPosition.as_bytes(nas)
-    aas: tuple[int, ...] = _translate_codon(
-        tuple(nas_bytes), tuple(fs_as), tuple(del_as)
-    )
+    aas: tuple[int, ...] = _translate_codon(tuple(nas_bytes), tuple(fs_as), tuple(del_as))
     return bytes(aas)
 
 
 @cython.ccall
 @cython.returns(list)
-def translate_codons(
-    nas: list[NAPosition], fs_as: bytes = b'X', del_as: bytes = b'-'
-) -> list[bytes]:
+def translate_codons(nas: list[NAPosition], fs_as: bytes = b'X', del_as: bytes = b'-') -> list[bytes]:
     nas_bytes: bytes = NAPosition.as_bytes(nas)
     codon: list[int]
     fs_as_tuple: tuple[int, ...] = tuple(fs_as)

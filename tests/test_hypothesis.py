@@ -7,7 +7,6 @@ sequences, complementing the exact-match tests in test_codon_alignment.py.
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
-from postalign.models.na_position import NAPosition
 from postalign.processors.codon_alignment import (
     REFGAP,
     SEQGAP,
@@ -35,9 +34,7 @@ def _insert_gaps(seq: str, gap_positions: list[int], gap_size: int) -> str:
 
 # Strategy: generate a codon-aligned base sequence (length divisible by 3)
 codon_seq = st.integers(min_value=2, max_value=30).flatmap(
-    lambda n_codons: st.text(
-        alphabet=BASES, min_size=n_codons * 3, max_size=n_codons * 3
-    )
+    lambda n_codons: st.text(alphabet=BASES, min_size=n_codons * 3, max_size=n_codons * 3)
 )
 
 
@@ -48,7 +45,7 @@ class TestInvariantsHypothesis:
         """When neither ref nor seq has gaps, output == input."""
         ref = make_sequence(base_seq, header='ref', seqid=0)
         seq = make_sequence(base_seq, header='seq', seqid=0)
-        max_pos = NAPosition.max_pos(ref.seqtext)
+        max_pos = ref.seqtext.max_pos()
         ref_out, seq_out = codon_align(ref, seq, 30, 10, DEFAULT_GPS, 1, max_pos)
         assert seq_to_str(ref_out) == base_seq
         assert seq_to_str(seq_out) == base_seq
@@ -75,7 +72,7 @@ class TestInvariantsHypothesis:
 
         ref = make_sequence(ref_str, header='ref', seqid=0)
         seq = make_sequence(seq_str, header='seq', seqid=0)
-        max_pos = NAPosition.max_pos(ref.seqtext)
+        max_pos = ref.seqtext.max_pos()
         ref_out, seq_out = codon_align(ref, seq, 30, 10, DEFAULT_GPS, 1, max_pos)
 
         r = seq_to_str(ref_out)
@@ -110,7 +107,7 @@ class TestInvariantsHypothesis:
 
         ref = make_sequence(ref_str, header='ref', seqid=0)
         seq = make_sequence(seq_str, header='seq', seqid=0)
-        max_pos = NAPosition.max_pos(ref.seqtext)
+        max_pos = ref.seqtext.max_pos()
         ref_out, seq_out = codon_align(ref, seq, 30, 10, DEFAULT_GPS, 1, max_pos)
 
         r = seq_to_str(ref_out)
@@ -142,10 +139,8 @@ class TestInvariantsHypothesis:
 
         ref = make_sequence(ref_str, header='ref', seqid=0)
         seq = make_sequence(seq_str, header='seq', seqid=0)
-        max_pos = NAPosition.max_pos(ref.seqtext)
-        ref_out, seq_out = codon_align(
-            ref, seq, 30, window_size, DEFAULT_GPS, 1, max_pos
-        )
+        max_pos = ref.seqtext.max_pos()
+        ref_out, seq_out = codon_align(ref, seq, 30, window_size, DEFAULT_GPS, 1, max_pos)
 
         r = seq_to_str(ref_out)
         s = seq_to_str(seq_out)

@@ -33,9 +33,7 @@ def load(
         seqpath = tempdir / 'query.fa'
         with seqpath.open('w') as fp:
             for seq in fasta.load(fastafp, seqtype, remove_gaps=True):
-                fp.write(
-                    f'>{seq.seqid} {seq.headerdesc}\n{seq.seqtext_as_str}\n'
-                )
+                fp.write(f'>{seq.seqid} {seq.headerdesc}\n{seq.seqtext_as_str}\n')
         proc = Popen(
             [
                 *mm2_cmd,
@@ -54,8 +52,6 @@ def load(
             proc.kill()
             outs, errs = proc.communicate()
         if proc.returncode != 0:
-            raise click.ClickException(
-                f'Error happened during xecuting minimap2: {errs}'
-            )
+            raise click.ClickException(f'Error happened during xecuting minimap2: {errs}')
         paffp = StringIO(outs)
         return paf.load(paffp, seqpath.open(), refpath.open(), seqtype, messages)
