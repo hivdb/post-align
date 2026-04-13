@@ -1,9 +1,9 @@
 import re
 from collections.abc import Iterable
-from typing import Any
 
 from ..cli import cli
 from ..models import RefSeqPair, Sequence
+from ..models.message import Message
 from ..processor import Processor, intermediate_processor
 
 LEFT_TRIM_PATTERN: re.Pattern = re.compile(r'^[.-]+')
@@ -28,7 +28,7 @@ def trim_by_ref() -> Processor[Iterable[RefSeqPair]]:
     """Trim all alignments by reference sequence"""
 
     @intermediate_processor('trim-by-ref')
-    def processor(iterator: Iterable[RefSeqPair], *args: Any) -> Iterable[RefSeqPair]:
+    def processor(iterator: Iterable[RefSeqPair], messages: list[Message]) -> Iterable[RefSeqPair]:
         for refseq, seq in iterator:
             if seq.seqtext == '':
                 # skip unaligned sequence

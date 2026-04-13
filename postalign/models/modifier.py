@@ -3,7 +3,6 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Iterator
 from itertools import groupby
 from operator import attrgetter
-from typing import Any
 
 
 class Modifier:
@@ -90,14 +89,24 @@ class ModifierLinkedList:
             last_modifier = Modifier('root()')
         self._last_modifier = last_modifier
 
-    def push(self: 'ModifierLinkedList', modtext: str, **kw: Any) -> 'ModifierLinkedList':
-        modifier: Modifier = Modifier(modtext, **kw)
+    def push(
+        self: 'ModifierLinkedList',
+        modtext: str,
+        *,
+        slicetuples: list[tuple[int, int]] | None = None,
+    ) -> 'ModifierLinkedList':
+        modifier: Modifier = Modifier(modtext, slicetuples=slicetuples)
         self._last_modifier.add_child_mod(modifier)
         return ModifierLinkedList(modifier)
 
-    def replace_last(self: 'ModifierLinkedList', modtext: str, **kw: Any) -> 'ModifierLinkedList':
+    def replace_last(
+        self: 'ModifierLinkedList',
+        modtext: str,
+        *,
+        slicetuples: list[tuple[int, int]] | None = None,
+    ) -> 'ModifierLinkedList':
         parent_ref: weakref.ref[Modifier]
-        modifier: Modifier = Modifier(modtext, **kw)
+        modifier: Modifier = Modifier(modtext, slicetuples=slicetuples)
         last_modifier: Modifier = self._last_modifier
         for parent_ref in last_modifier.parent_mods:
             parent: Modifier | None = parent_ref()

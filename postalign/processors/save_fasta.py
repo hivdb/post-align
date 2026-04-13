@@ -1,10 +1,10 @@
 from collections.abc import Iterable
-from typing import Any
 
 import click
 
 from ..cli import cli
 from ..models import RefSeqPair, Sequence
+from ..models.message import Message
 from ..processor import Processor, output_processor
 
 
@@ -24,7 +24,7 @@ def save_fasta(preserve_order: bool, modifiers: bool, pairwise: bool) -> Process
     """Save prior post-alignment results as a FASTA file"""
 
     @output_processor('save-fasta')
-    def processor(iterator: Iterable[RefSeqPair], *args: Any) -> Iterable[str]:
+    def processor(iterator: Iterable[RefSeqPair], messages: list[Message]) -> Iterable[str]:
         # TODO: MSA remap?
         idx: int
         refseq: Sequence

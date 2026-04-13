@@ -27,13 +27,13 @@ Optimisations over the original implementation (D1-D4):
 import re
 from collections.abc import Iterable
 from itertools import chain, groupby
-from typing import Any
 
 import click
 import cython  # type: ignore
 
 from ..cli import cli
 from ..models import NAPosition, NAPositionList, RefSeqPair, Sequence
+from ..models.message import Message
 from ..processor import Processor, intermediate_processor
 from ..utils import find_codon_trim_slice, group_by_codons
 from ..utils.blosum62 import blosum62_score
@@ -893,7 +893,7 @@ def codon_alignment(
         _align_fn = codon_align
 
     @intermediate_processor('codon-alignment')
-    def processor(iterator: Iterable[RefSeqPair], *args: Any) -> Iterable[RefSeqPair]:
+    def processor(iterator: Iterable[RefSeqPair], messages: list[Message]) -> Iterable[RefSeqPair]:
         refseq: Sequence
         seq: Sequence
         for refseq, seq in iterator:
